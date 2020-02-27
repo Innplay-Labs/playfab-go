@@ -1,3 +1,3 @@
-module github.com/Innplay-Labs/PlayFab
+module github.com/Innplay-Labs/playfab-go
 
 go 1.13
