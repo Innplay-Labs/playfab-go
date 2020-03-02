@@ -8,7 +8,7 @@ import (
 	"net/http"
 )
 
-const ServerUrl = "https://titleId.playfabapi.com/Server/%s"
+const url = "https://titleId.playfabapi.com/%s/%s"
 
 func EvaluateRandomTable(tableId string, playFabId string, secretKey string) (string, error) {
 	requestBody, err := json.Marshal(map[string]string{
@@ -20,7 +20,7 @@ func EvaluateRandomTable(tableId string, playFabId string, secretKey string) (st
 		return "", err
 	}
 
-	body, err := request("POST", "EvaluateRandomResultTable", requestBody, secretKey)
+	body, err := request("POST", "Server","EvaluateRandomResultTable", requestBody, secretKey)
 
 	if err != nil {
 		return "", err
@@ -57,7 +57,7 @@ func UpdateUserReadOnlyData(data map[string]string, playFabId string, secretKey 
 		return  err
 	}
 
-	_, err = request("POST", "UpdateUserReadOnlyData", requestBody, secretKey)
+	_, err = request("POST", "Server", "UpdateUserReadOnlyData", requestBody, secretKey)
 
 	if err != nil {
 		return err
@@ -76,20 +76,45 @@ func GrantItemsToUser(itemIds []string, playFabId string, secretKey string) erro
 		return err
 	}
 
-	_, err = request("POST", "GrantItemsToUser", requestBody, secretKey)
+	_, err = request("POST", "Server", "GrantItemsToUser", requestBody, secretKey)
 
 	if err != nil {
 		return err
 	}
 
-
 	return nil
 }
 
-func request(method string, funcName string ,reqBody []byte, secretKey string) ([]byte, error){
+func GetPlayerCombinedInfo(reqInfo map[string]interface{}, playFabId string, secretKey string) (map[string]interface{}, error) {
+
+	requestBody, err := json.Marshal(map[string]interface{}{
+		"PlayFabId": playFabId,
+		"InfoRequestParameters": reqInfo,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := request("POST", "Client","GetPlayerCombinedInfo", requestBody, secretKey)
+
+	if err != nil {
+		return nil, err
+	}
+
+	res := make(map[string]interface{})
+	// Note below, json.Unmarshal can only take a pointer as second argument
+	if err := json.Unmarshal(body, &res); err != nil {
+		return nil, err
+	}
+
+	return res["InfoResultPayload"].(map[string]interface{}), nil
+}
+
+func request(method string, api string, funcName string ,reqBody []byte, secretKey string) ([]byte, error){
 	hc := &http.Client{}
 
-	req, err := http.NewRequest(method, fmt.Sprintf(ServerUrl, funcName), bytes.NewBuffer(reqBody))
+	req, err := http.NewRequest(method, fmt.Sprintf(url, api, funcName), bytes.NewBuffer(reqBody))
 
 	if err != nil {
 		return nil, err
