@@ -163,7 +163,7 @@ func GetTitleInternalData(keys []string, secretKey string) (map[string]interface
 	if err := json.Unmarshal(body, &res); err != nil {
 		return nil, err
 	}
-	fmt.Printf("%s", res)
+
 	data, ok := res["data"].(map[string]interface{})
 	if !ok {
 		return nil, fmt.Errorf("Failed to parse GetTitleInternalData result")
@@ -172,6 +172,68 @@ func GetTitleInternalData(keys []string, secretKey string) (map[string]interface
 	internalData, ok := data["Data"].(map[string]interface{})
 
 	return internalData, nil
+}
+
+func AddUserVirtualCurrency(amount uint64, currencyId string, playFabId string, secretKey string) (map[string]interface{}, error) {
+	fmt.Println("starting AddUserVirtualCurrency")
+	requestBody, err := json.Marshal(map[string]interface{}{
+		"Amount":          amount,
+		"PlayFabId":       playFabId,
+		"VirtualCurrency": currencyId,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := request("POST", "Server", "AddUserVirtualCurrency", requestBody, secretKey)
+
+	if err != nil {
+		return nil, err
+	}
+
+	res := make(map[string]interface{})
+	if err := json.Unmarshal(body, &res); err != nil {
+		return nil, err
+	}
+
+	data, ok := res["data"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("Failed to parse AddUserVirtualCurrencyResponse result")
+	}
+
+	return data, nil
+}
+
+func SubtractUserVirtualCurrency(amount uint64, currencyId string, playFabId string, secretKey string) (map[string]interface{}, error) {
+	fmt.Println("starting SubtractUserVirtualCurrency")
+	requestBody, err := json.Marshal(map[string]interface{}{
+		"Amount":          amount,
+		"PlayFabId":       playFabId,
+		"VirtualCurrency": currencyId,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := request("POST", "Server", "SubtractUserVirtualCurrency", requestBody, secretKey)
+
+	if err != nil {
+		return nil, err
+	}
+
+	res := make(map[string]interface{})
+	if err := json.Unmarshal(body, &res); err != nil {
+		return nil, err
+	}
+
+	data, ok := res["data"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("Failed to parse SubtractUserVirtualCurrency result")
+	}
+
+	return data, nil
 }
 
 func request(method string, api string, funcName string, reqBody []byte, secretKey string) ([]byte, error) {
