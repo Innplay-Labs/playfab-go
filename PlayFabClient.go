@@ -10,10 +10,11 @@ import (
 
 const url = "https://titleId.playfabapi.com/%s/%s"
 
-func EvaluateRandomTable(tableId string, playFabId string, secretKey string) (string, error) {
+func EvaluateRandomTable(tableId string, playFabId string, secretKey string, catalogVersion string) (string, error) {
 	requestBody, err := json.Marshal(map[string]string{
 		"TableId":   tableId,
 		"PlayFabId": playFabId,
+		"CatalogVersion": catalogVersion,
 	})
 
 	if err != nil {
@@ -67,10 +68,11 @@ func UpdateUserReadOnlyData(data map[string]string, playFabId string, secretKey 
 	return nil
 }
 
-func GrantItemsToUser(itemIds []string, playFabId string, secretKey string) error {
+func GrantItemsToUser(itemIds []string, playFabId string, secretKey string, catalogVersion string) error {
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"ItemIds":   itemIds,
 		"PlayFabId": playFabId,
+		"CatalogVersion": catalogVersion,
 	})
 
 	if err != nil {
