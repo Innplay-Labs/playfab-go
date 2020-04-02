@@ -88,6 +88,43 @@ func GrantItemsToUser(itemIds []string, playFabId string, secretKey string, cata
 	return nil
 }
 
+func GetPlayerStatistics(statisitcsIds []string, playFabId string, secretKey string) ([]map[string]interface{}, error) {
+	fmt.Println("starting ReadPlayerStatistics")
+	requestBody, err := json.Marshal(map[string]interface{}{
+		"PlayFabId": playFabId,
+		"StatisticsNames": statisitcsIds,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := request("GET", "Server", "GetPlayerStatistics", requestBody, secretKey)
+
+	if err != nil {
+		return nil, err
+	}
+
+	res := make(map[string]interface{})
+
+	if err := json.Unmarshal(body, &res); err != nil {
+		return nil, err
+	}
+
+	data, ok := res["data"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("Failed to parse  GetPLayerStatistics")
+	}
+
+	statisitcs, ok := data["Statistics"].([]map[string]interface{})
+
+	if !ok {
+		return nil, fmt.Errorf("Failed to parse  GetPLayerStatistics")
+	}
+
+	return statisitcs, nil
+}
+
 func GetPlayerCombinedInfo(reqInfo map[string]interface{}, playFabId string, secretKey string) (map[string]interface{}, error) {
 	fmt.Println("starting getplayercombinedinfo")
 	requestBody, err := json.Marshal(map[string]interface{}{
@@ -174,6 +211,106 @@ func GetTitleInternalData(keys []string, secretKey string) (map[string]interface
 	internalData, ok := data["Data"].(map[string]interface{})
 
 	return internalData, nil
+}
+
+func GetCatalogItems(catalogVersion string, secretKey string) ([]interface{}, error) {
+	fmt.Println("starting GetCatalogItems")
+	requestBody, err := json.Marshal(map[string]interface{}{
+		"CatalogVersion": catalogVersion,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := request("POST", "Server", "GetCatalogItems", requestBody, secretKey)
+
+	if err != nil {
+		return nil, err
+	}
+
+	res := make(map[string]interface{})
+	if err := json.Unmarshal(body, &res); err != nil {
+		return nil, err
+	}
+
+	data, ok := res["data"].(map[string]interface{});
+	if !ok {
+		return nil, fmt.Errorf("Failed to parse GetCatalogItems result")
+	}
+
+	catalogItems, ok := data["Catalog"].([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("Failed to parse GetCatalogItems result")
+	}
+
+	return catalogItems, nil
+}
+
+func GetUserInventory(playFabId string, secretKey string) ([]interface{}, error){
+
+	requestBody, err := json.Marshal(map[string]interface{}{
+		"PlayFabId":       playFabId,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := request("POST", "Server", "GetUserInventory", requestBody, secretKey)
+	if err != nil {
+		return nil, err
+	}
+	res := make(map[string]interface{})
+	if err := json.Unmarshal(body, &res); err != nil {
+		return nil, err
+	}
+
+	data, ok := res["data"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("Failed to parse GetUserInventory result")
+	}
+
+	itemInstances, ok := data["Inventory"].([]interface{})
+
+	if !ok {
+		return nil, fmt.Errorf("Failed to parse GetUserInventory result")
+	}
+
+	return itemInstances, nil
+}
+
+func GetVirtualCurrency(playFabId string, secretKey string) (map[string]interface{}, error){
+
+	requestBody, err := json.Marshal(map[string]interface{}{
+		"PlayFabId":       playFabId,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := request("POST", "Server", "GetUserInventory", requestBody, secretKey)
+	if err != nil {
+		return nil, err
+	}
+	res := make(map[string]interface{})
+	if err := json.Unmarshal(body, &res); err != nil {
+		return nil, err
+	}
+
+	data, ok := res["data"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("Failed to parse GetUserCurrency result")
+	}
+
+	virtualCurrency, ok := data["VirtualCurrency"].(map[string]interface{})
+
+	if !ok {
+		return nil, fmt.Errorf("Failed to parse GetUserCurrency result")
+	}
+
+	return virtualCurrency, nil
 }
 
 func AddUserVirtualCurrency(amount uint64, currencyId string, playFabId string, secretKey string) (map[string]interface{}, error) {
