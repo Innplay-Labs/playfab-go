@@ -213,6 +213,41 @@ func GetTitleInternalData(keys []string, secretKey string) (map[string]interface
 	return internalData, nil
 }
 
+func GetStoreItems(storeId string, catalogVersion string, secretKey string)([]interface{}, error) {
+	fmt.Println("starting GetStoreItems")
+	requestBody, err := json.Marshal(map[string]interface{}{
+		"CatalogVersion": catalogVersion,
+		"StoreId": storeId,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := request("POST", "Server", "GetStoreItems", requestBody, secretKey)
+
+	if err != nil {
+		return nil, err
+	}
+
+	res := make(map[string]interface{})
+	if err := json.Unmarshal(body, &res); err != nil {
+		return nil, err
+	}
+
+	data, ok := res["data"].(map[string]interface{});
+	if !ok {
+		return nil, fmt.Errorf("Failed to parse GetStoreItem result")
+	}
+
+	storeItems, ok := data["Store"].([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("Failed to parse GetStoreItem result")
+	}
+
+	return storeItems, nil
+}
+
 func GetCatalogItems(catalogVersion string, secretKey string) ([]interface{}, error) {
 	fmt.Println("starting GetCatalogItems")
 	requestBody, err := json.Marshal(map[string]interface{}{
