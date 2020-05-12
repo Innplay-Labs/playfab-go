@@ -12,8 +12,8 @@ const url = "https://titleId.playfabapi.com/%s/%s"
 
 func EvaluateRandomTable(tableId string, playFabId string, secretKey string, catalogVersion string) (string, error) {
 	requestBody, err := json.Marshal(map[string]string{
-		"TableId":   tableId,
-		"PlayFabId": playFabId,
+		"TableId":        tableId,
+		"PlayFabId":      playFabId,
 		"CatalogVersion": catalogVersion,
 	})
 
@@ -70,8 +70,8 @@ func UpdateUserReadOnlyData(data map[string]string, playFabId string, secretKey 
 
 func GrantItemsToUser(itemIds []string, playFabId string, secretKey string, catalogVersion string) error {
 	requestBody, err := json.Marshal(map[string]interface{}{
-		"ItemIds":   itemIds,
-		"PlayFabId": playFabId,
+		"ItemIds":        itemIds,
+		"PlayFabId":      playFabId,
 		"CatalogVersion": catalogVersion,
 	})
 
@@ -91,7 +91,7 @@ func GrantItemsToUser(itemIds []string, playFabId string, secretKey string, cata
 func GetPlayerStatistics(statisitcsIds []string, playFabId string, secretKey string) ([]map[string]interface{}, error) {
 	fmt.Println("starting ReadPlayerStatistics")
 	requestBody, err := json.Marshal(map[string]interface{}{
-		"PlayFabId": playFabId,
+		"PlayFabId":       playFabId,
 		"StatisticsNames": statisitcsIds,
 	})
 
@@ -213,11 +213,11 @@ func GetTitleInternalData(keys []string, secretKey string) (map[string]interface
 	return internalData, nil
 }
 
-func GetStoreItems(storeId string, catalogVersion string, secretKey string)([]interface{}, error) {
+func GetStoreItems(storeId string, catalogVersion string, secretKey string) ([]interface{}, error) {
 	fmt.Println("starting GetStoreItems")
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"CatalogVersion": catalogVersion,
-		"StoreId": storeId,
+		"StoreId":        storeId,
 	})
 
 	if err != nil {
@@ -235,7 +235,7 @@ func GetStoreItems(storeId string, catalogVersion string, secretKey string)([]in
 		return nil, err
 	}
 
-	data, ok := res["data"].(map[string]interface{});
+	data, ok := res["data"].(map[string]interface{})
 	if !ok {
 		return nil, fmt.Errorf("Failed to parse GetStoreItem result")
 	}
@@ -269,7 +269,7 @@ func GetCatalogItems(catalogVersion string, secretKey string) ([]interface{}, er
 		return nil, err
 	}
 
-	data, ok := res["data"].(map[string]interface{});
+	data, ok := res["data"].(map[string]interface{})
 	if !ok {
 		return nil, fmt.Errorf("Failed to parse GetCatalogItems result")
 	}
@@ -282,10 +282,10 @@ func GetCatalogItems(catalogVersion string, secretKey string) ([]interface{}, er
 	return catalogItems, nil
 }
 
-func GetUserInventory(playFabId string, secretKey string) ([]interface{}, error){
+func GetUserInventory(playFabId string, secretKey string) ([]interface{}, error) {
 
 	requestBody, err := json.Marshal(map[string]interface{}{
-		"PlayFabId":       playFabId,
+		"PlayFabId": playFabId,
 	})
 
 	if err != nil {
@@ -315,10 +315,10 @@ func GetUserInventory(playFabId string, secretKey string) ([]interface{}, error)
 	return itemInstances, nil
 }
 
-func GetVirtualCurrency(playFabId string, secretKey string) (map[string]interface{}, error){
+func GetVirtualCurrency(playFabId string, secretKey string) (map[string]interface{}, error) {
 
 	requestBody, err := json.Marshal(map[string]interface{}{
-		"PlayFabId":       playFabId,
+		"PlayFabId": playFabId,
 	})
 
 	if err != nil {
@@ -408,6 +408,25 @@ func SubtractUserVirtualCurrency(amount uint64, currencyId string, playFabId str
 	}
 
 	return data, nil
+}
+
+func ConsumeItem(playFabId string, secretKey string, itemInstanceId string, consumeCount int) (interface{}, error) {
+	requestBody, err := json.Marshal(map[string]interface{}{
+		"PlayFabId":      playFabId,
+		"ItemInstanceId": itemInstanceId,
+		"ConsumeCount":   consumeCount,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := request("POST", "Server", "ConsumeItem", requestBody, secretKey)
+	if err != nil {
+		return nil, err
+	}
+
+	return body, nil
 }
 
 func request(method string, api string, funcName string, reqBody []byte, secretKey string) ([]byte, error) {
