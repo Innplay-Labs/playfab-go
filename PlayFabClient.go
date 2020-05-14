@@ -213,6 +213,38 @@ func GetTitleInternalData(keys []string, secretKey string) (map[string]interface
 	return internalData, nil
 }
 
+func GetTitleData(keys []string, secretKey string) (map[string]interface{}, error) {
+	fmt.Println("starting GetTitleData")
+	requestBody, err := json.Marshal(map[string]interface{}{
+		"Keys": keys,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := request("POST", "Server", "GetTitleData", requestBody, secretKey)
+
+	if err != nil {
+		return nil, err
+	}
+
+	res := make(map[string]interface{})
+	// Note below, json.Unmarshal can only take a pointer as second argument
+	if err := json.Unmarshal(body, &res); err != nil {
+		return nil, err
+	}
+
+	data, ok := res["data"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("Failed to parse GetTitleData result")
+	}
+
+	titlelData, ok := data["Data"].(map[string]interface{})
+
+	return titlelData, nil
+}
+
 func GetStoreItems(storeId string, catalogVersion string, secretKey string) ([]interface{}, error) {
 	fmt.Println("starting GetStoreItems")
 	requestBody, err := json.Marshal(map[string]interface{}{
@@ -456,7 +488,7 @@ func request(method string, api string, funcName string, reqBody []byte, secretK
 	}
 
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("Failed To Process Request With status code %s: %s", resp.StatusCode, string(resBody))
+		return nil, fmt.Errorf("Failed To Process Request With status code %d: %s", resp.StatusCode, string(resBody))
 	}
 
 	return resBody, nil
