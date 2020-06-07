@@ -68,24 +68,47 @@ func UpdateUserReadOnlyData(data map[string]string, titleId string, playFabId st
 	return nil
 }
 
-func GrantItemsToUser(itemIds []string, titleId string, playFabId string, secretKey string, catalogVersion string) error {
+func GrantItemsToUser(itemIds []string, titleId string, playFabId string, secretKey string, catalogVersion string) ([]interface{}, error) {
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"ItemIds":        itemIds,
 		"PlayFabId":      playFabId,
 		"CatalogVersion": catalogVersion,
 	})
 
-	if err != nil {
-		return err
-	}
-
-	_, err = request("POST", titleId, "Server", "GrantItemsToUser", requestBody, secretKey)
+	fmt.Printf("grant items to user playfabId: %s, itemIds %s", playFabId, itemIds)
 
 	if err != nil {
-		return err
+		fmt.Printf("Failed Grant Items To User %v", err)
+		return nil, err
 	}
 
-	return nil
+	body, err := request("POST", titleId, "Server", "GrantItemsToUser", requestBody, secretKey)
+
+	fmt.Printf("grant items response %s", body)
+
+	if err != nil {
+		fmt.Printf("Failed Grant Items To User %v", err)
+		return nil, err
+	}
+
+	res := make(map[string]interface{})
+
+	if err := json.Unmarshal(body, &res); err != nil {
+		return nil, err
+	}
+
+	data, ok := res["data"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("Failed to parse GrantItemsToUser data")
+	}
+
+	itemsRes, ok := data["ItemGrantResults"].([]interface{})
+
+	if !ok {
+		return nil, fmt.Errorf("Failed to parse GrantItemsToUser ItemGrantResults")
+	}
+
+	return itemsRes, nil
 }
 
 func GetPlayerStatistics(statisitcsIds []string, titleId string, playFabId string, secretKey string) ([]map[string]interface{}, error) {
