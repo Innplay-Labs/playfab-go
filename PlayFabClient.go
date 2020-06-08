@@ -10,6 +10,15 @@ import (
 
 const url = "https://%s.playfabapi.com/%s/%s"
 
+type PlayFabError struct {
+	originError error
+	Body []byte
+}
+
+func (e *PlayFabError) Error() string {
+	return e.originError.Error()
+}
+
 func EvaluateRandomTable(tableId string, titleId string, playFabId string, secretKey string, catalogVersion string) (string, error) {
 	requestBody, err := json.Marshal(map[string]string{
 		"TableId":        tableId,
@@ -511,7 +520,7 @@ func request(method string, titleId string, api string, funcName string, reqBody
 	}
 
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("Failed To Process Request With status code %d: %s", resp.StatusCode, string(resBody))
+		return resBody, &PlayFabError{fmt.Errorf("Failed To Process Request With status code %d: %s", resp.StatusCode, string(resBody)), resBody}
 	}
 
 	return resBody, nil
