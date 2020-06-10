@@ -12,7 +12,7 @@ const url = "https://%s.playfabapi.com/%s/%s"
 
 type PlayFabError struct {
 	originError error
-	Body []byte
+	Body        []byte
 }
 
 func (e *PlayFabError) Error() string {
@@ -75,6 +75,42 @@ func UpdateUserReadOnlyData(data map[string]string, titleId string, playFabId st
 	}
 
 	return nil
+}
+
+func GetUserReadOnlyData(keys []string, titleId string, playFabId string, secretKey string) (map[string]interface{}, error) {
+	requestBody, err := json.Marshal(map[string]interface{}{
+		"Keys":      keys,
+		"PlayFabId": playFabId,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := request("POST", titleId, "Server", "GetUserReadOnlyData", requestBody, secretKey)
+
+	if err != nil {
+		return nil, err
+	}
+
+	res := make(map[string]interface{})
+
+	if err := json.Unmarshal(body, &res); err != nil {
+		return nil, err
+	}
+
+	data, ok := res["data"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("Failed to parse GetUserReadOnlyData data")
+	}
+
+	keysData, ok := data["Data"].(map[string]interface{})
+
+	if !ok {
+		return nil, fmt.Errorf("Failed to parse GetUserReadOnlyData data")
+	}
+
+	return keysData, nil
 }
 
 func GrantItemsToUser(itemIds []string, titleId string, playFabId string, secretKey string, catalogVersion string) ([]interface{}, error) {
