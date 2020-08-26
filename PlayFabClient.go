@@ -296,7 +296,7 @@ func GetTitleData(keys []string, titleId string, secretKey string) (map[string]i
 	if err != nil {
 		return nil, err
 	}
-
+	body = bytes.TrimPrefix(body, []byte("\xef\xbb\xbf"))
 	res := make(map[string]interface{})
 	// Note below, json.Unmarshal can only take a pointer as second argument
 	if err := json.Unmarshal(body, &res); err != nil {
