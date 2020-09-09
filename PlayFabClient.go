@@ -348,6 +348,46 @@ func GetStoreItems(storeId string, titleId string, catalogVersion string, secret
 	return storeItems, nil
 }
 
+func GetStore(storeId string, titleId string, catalogVersion string, secretKey string) (map[string]interface{}, error) {
+	fmt.Println("starting GetStore")
+	requestBody, err := json.Marshal(map[string]interface{}{
+		"CatalogVersion": catalogVersion,
+		"StoreId":        storeId,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := request("POST", titleId, "Server", "GetStoreItems", requestBody, secretKey)
+
+	if err != nil {
+		return nil, err
+	}
+
+	res := make(map[string]interface{})
+	if err := json.Unmarshal(body, &res); err != nil {
+		return nil, err
+	}
+
+	data, ok := res["data"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("Failed to parse GetStore result")
+	}
+
+	MarketingData, ok := data["MarketingData"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("Failed to parse MarketingData ")
+	}
+
+	metadata, ok := MarketingData["Metadata"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("Failed to parse Metadata")
+	}
+
+	return metadata, nil
+}
+
 func GetCatalogItems(catalogVersion string, titleId string, secretKey string) ([]interface{}, error) {
 	fmt.Println("starting GetCatalogItems")
 	requestBody, err := json.Marshal(map[string]interface{}{
