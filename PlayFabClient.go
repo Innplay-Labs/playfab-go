@@ -569,7 +569,7 @@ func ConsumeItem(playFabId string, titleId string, secretKey string, itemInstanc
 	return body, nil
 }
 
-func RevokeInventoryItems(revokeInventoryItems []map[string]interface{}, titleId string, secretKey string) (error) {
+func RevokeInventoryItems(revokeInventoryItems []map[string]interface{}, titleId string, secretKey string) error {
 
 	// Make sure there are no empty/nil cells in the slice
 	newRevokeInventoryItems := make([]interface{}, 0, len(revokeInventoryItems))
@@ -578,7 +578,13 @@ func RevokeInventoryItems(revokeInventoryItems []map[string]interface{}, titleId
 			newRevokeInventoryItems = append(newRevokeInventoryItems, item)
 		}
 	}
-	requestBody, err := json.Marshal(map[string]interface {}{
+
+	// Nothing to delete - do nothing
+	if len(newRevokeInventoryItems) == 0 {
+		return nil
+	}
+
+	requestBody, err := json.Marshal(map[string]interface{}{
 		"Items": newRevokeInventoryItems,
 	})
 
