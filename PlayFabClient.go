@@ -6,9 +6,13 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"time"
 )
 
-const url = "https://%s.playfabapi.com/%s/%s"
+const Url = "https://%s.playfabapi.com/%s/%s"
+const Retries = 3
+const ConflictStatus = "Conflict"
+
 
 type PlayFabError struct {
 	originError error
@@ -569,6 +573,34 @@ func ConsumeItem(playFabId string, titleId string, secretKey string, itemInstanc
 	return body, nil
 }
 
+func request(method string, titleId string, api string, funcName string, reqBody []byte, secretKey string) (d []byte, err error) {
+
+	counter := 0
+
+	for counter <= Retries {
+		counter++
+		fmt.Printf("Starting retry %d for playfab request", counter)
+		d, oerr := _request(method, titleId, api, funcName, reqBody, secretKey)
+		if oerr != nil {
+			err, isConflictError := isConflictError(oerr)
+			if err != nil {
+				return d, err
+			}
+
+			if !isConflictError {
+				return d, oerr
+			}
+
+			time.Sleep(1 * time.Second)
+
+		} else {
+			return d, nil
+		}
+	}
+
+	return d, err
+}
+
 func RevokeInventoryItems(revokeInventoryItems []map[string]interface{}, titleId string, secretKey string) error {
 
 	// Make sure there are no empty/nil cells in the slice
@@ -601,10 +633,10 @@ func RevokeInventoryItems(revokeInventoryItems []map[string]interface{}, titleId
 	return nil
 }
 
-func request(method string, titleId string, api string, funcName string, reqBody []byte, secretKey string) ([]byte, error) {
+func _request(method string, titleId string, api string, funcName string, reqBody []byte, secretKey string) ([]byte, error) {
 	hc := &http.Client{}
 
-	req, err := http.NewRequest(method, fmt.Sprintf(url, titleId, api, funcName), bytes.NewBuffer(reqBody))
+	req, err := http.NewRequest(method, fmt.Sprintf(Url, titleId, api, funcName), bytes.NewBuffer(reqBody))
 
 	if err != nil {
 		return nil, err
@@ -632,4 +664,31 @@ func request(method string, titleId string, api string, funcName string, reqBody
 	}
 
 	return resBody, nil
+}
+
+func isConflictError(oerr error) (error, bool) {
+	errorData := make(map[string]interface{})
+	serr, ok := oerr.(*PlayFabError)
+	if !ok {
+		err := fmt.Errorf("Failed to convert to playfab error")
+		return err, false
+	}
+
+	err := json.Unmarshal(serr.Body, &errorData)
+	if err != nil {
+		return err, false
+	}
+
+	errStatus, ok := errorData["status"].(string)
+
+	if !ok {
+		err := fmt.Errorf("Failed to parse status from error")
+		return err, false
+	}
+
+	if errStatus != ConflictStatus {
+		return nil, false
+	}
+
+	return nil, true
 }
