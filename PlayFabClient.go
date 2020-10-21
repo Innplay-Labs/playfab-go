@@ -579,7 +579,7 @@ func request(method string, titleId string, api string, funcName string, reqBody
 
 	for counter <= Retries {
 		counter++
-		fmt.Printf("Starting retry %d for playfab request %s", counter)
+		fmt.Printf("Starting retry %d for playfab request", counter)
 		d, oerr := _request(method, titleId, api, funcName, reqBody, secretKey)
 		if oerr != nil {
 			err, isConflictError := isConflictError(oerr)
