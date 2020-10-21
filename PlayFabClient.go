@@ -348,7 +348,7 @@ func GetStoreItems(storeId string, titleId string, catalogVersion string, secret
 	if !ok {
 		return nil, fmt.Errorf("Failed to parse GetStoreItem result")
 	}
-
+	fmt.Println("Finished GetStoreItems")
 	return storeItems, nil
 }
 
@@ -599,6 +599,38 @@ func request(method string, titleId string, api string, funcName string, reqBody
 	}
 
 	return d, err
+}
+
+func RevokeInventoryItems(revokeInventoryItems []map[string]interface{}, titleId string, secretKey string) error {
+
+	// Make sure there are no empty/nil cells in the slice
+	newRevokeInventoryItems := make([]interface{}, 0, len(revokeInventoryItems))
+	for _, item := range revokeInventoryItems {
+		if item != nil {
+			newRevokeInventoryItems = append(newRevokeInventoryItems, item)
+		}
+	}
+
+	// Nothing to delete - do nothing
+	if len(newRevokeInventoryItems) == 0 {
+		return nil
+	}
+
+	requestBody, err := json.Marshal(map[string]interface{}{
+		"Items": newRevokeInventoryItems,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	_, err = request("POST", titleId, "Server", "RevokeInventoryItems", requestBody, secretKey)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func _request(method string, titleId string, api string, funcName string, reqBody []byte, secretKey string) ([]byte, error) {
