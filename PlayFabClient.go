@@ -633,6 +633,25 @@ func RevokeInventoryItems(revokeInventoryItems []map[string]interface{}, titleId
 	return nil
 }
 
+func SendPushNotification(message string, recipient string, titleId string, secretKey string) error {
+	requestBody, err := json.Marshal(map[string]interface{}{
+		"Message":   message,
+		"Recipient": recipient,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	_, err = request("POST", titleId, "Server", "SendPushNotification", requestBody, secretKey)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func _request(method string, titleId string, api string, funcName string, reqBody []byte, secretKey string) ([]byte, error) {
 	hc := &http.Client{}
 
