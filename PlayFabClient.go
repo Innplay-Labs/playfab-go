@@ -652,6 +652,86 @@ func SendPushNotification(message string, recipient string, titleId string, secr
 	return nil
 }
 
+func AddPlayerTag(tag string, titleId string, playFabId string, secretKey string) error {
+	requestBody, err := json.Marshal(map[string]interface{}{
+		"PlayFabId":  playFabId,
+		"TagName": tag,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	_, err = request("POST", titleId, "Server", "AddPlayerTag", requestBody, secretKey)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func RemovePlayerTag(tag string, titleId string, playFabId string, secretKey string) error {
+	requestBody, err := json.Marshal(map[string]interface{}{
+		"PlayFabId":  playFabId,
+		"TagName": tag,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	_, err = request("POST", titleId, "Server", "RemovePlayerTag", requestBody, secretKey)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func GetPlayerTags(titleId string, playFabId string, secretKey string) ([]string, error) {
+	requestBody, err := json.Marshal(map[string]interface{}{
+		"PlayFabId":  playFabId,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	d, err := request("POST", titleId, "Server", "GetPlayerTags", requestBody, secretKey)
+
+	if err != nil {
+		return nil, err
+	}
+
+	res := make(map[string]interface{})
+	if err := json.Unmarshal(d, &res); err != nil {
+		return nil, err
+	}
+
+	data, ok := res["data"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("Failed to parse GetPlayerCombinedInfo result")
+	}
+
+	t, ok := data["Tags"].([]interface{})
+
+	tags := make([]string, 0)
+
+	for i, _ := range t {
+		v, ok := t[i].(string)
+
+		if !ok {
+			return nil, fmt.Errorf("Failed to parse tags result")
+		}
+
+		tags = append(tags, v)
+	}
+
+	return tags, nil
+}
+
 func _request(method string, titleId string, api string, funcName string, reqBody []byte, secretKey string) ([]byte, error) {
 	hc := &http.Client{}
 
