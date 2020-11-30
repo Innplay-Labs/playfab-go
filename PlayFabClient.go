@@ -68,17 +68,18 @@ func EvaluateRandomTable(tableId string, titleId string, playFabId string, secre
 	return itemId, nil
 }
 
-func UnlockContainerItem(data map[string]string, titleId string, playFabId string, secretKey string) error {
+func UnlockContainerItem(ItemInstanceId string, titleId string, playFabId string, secretKey string, catalogVersion string, logger Logger) error {
 	requestBody, err := json.Marshal(map[string]interface{}{
-		"ContainerItemId": data,
-		"PlayFabId":       playFabId,
+		"ContainerItemInstanceId": ItemInstanceId,
+		"PlayFabId":               playFabId,
+		"CatalogVersion":          catalogVersion,
 	})
 
 	if err != nil {
 		return err
 	}
 
-	_, err = request("POST", titleId, "Server", "UnlockContainerItem", requestBody, secretKey)
+	_, err = request("POST", titleId, "Server", "UnlockContainerInstance", requestBody, secretKey, logger)
 
 	if err != nil {
 		return err
