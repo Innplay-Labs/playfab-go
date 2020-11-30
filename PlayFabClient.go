@@ -6,9 +6,19 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"time"
 )
 
-const url = "https://%s.playfabapi.com/%s/%s"
+const Url = "https://%s.playfabapi.com/%s/%s"
+const Retries = 3
+const ConflictStatus = "Conflict"
+
+type Logger interface {
+	Debug(format string, v ...interface{})
+	Info(format string, v ...interface{})
+	Warn(format string, v ...interface{})
+	Error(format string, v ...interface{})
+}
 
 type PlayFabError struct {
 	originError error
@@ -19,7 +29,7 @@ func (e *PlayFabError) Error() string {
 	return e.originError.Error()
 }
 
-func EvaluateRandomTable(tableId string, titleId string, playFabId string, secretKey string, catalogVersion string) (string, error) {
+func EvaluateRandomTable(tableId string, titleId string, playFabId string, secretKey string, catalogVersion string, logger Logger) (string, error) {
 	requestBody, err := json.Marshal(map[string]string{
 		"TableId":        tableId,
 		"PlayFabId":      playFabId,
@@ -30,7 +40,7 @@ func EvaluateRandomTable(tableId string, titleId string, playFabId string, secre
 		return "", err
 	}
 
-	body, err := request("POST", titleId, "Server", "EvaluateRandomResultTable", requestBody, secretKey)
+	body, err := request("POST", titleId, "Server", "EvaluateRandomResultTable", requestBody, secretKey, logger)
 
 	if err != nil {
 		return "", err
@@ -77,7 +87,7 @@ func UnlockContainerItem(data map[string]string, titleId string, playFabId strin
 	return nil
 }
 
-func UpdateUserReadOnlyData(data map[string]string, titleId string, playFabId string, secretKey string) error {
+func UpdateUserReadOnlyData(data map[string]string, titleId string, playFabId string, secretKey string, logger Logger) error {
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"Data":      data,
 		"PlayFabId": playFabId,
@@ -87,7 +97,7 @@ func UpdateUserReadOnlyData(data map[string]string, titleId string, playFabId st
 		return err
 	}
 
-	_, err = request("POST", titleId, "Server", "UpdateUserReadOnlyData", requestBody, secretKey)
+	_, err = request("POST", titleId, "Server", "UpdateUserReadOnlyData", requestBody, secretKey, logger)
 
 	if err != nil {
 		return err
@@ -96,7 +106,7 @@ func UpdateUserReadOnlyData(data map[string]string, titleId string, playFabId st
 	return nil
 }
 
-func GetUserReadOnlyData(keys []string, titleId string, playFabId string, secretKey string) (map[string]interface{}, error) {
+func GetUserReadOnlyData(keys []string, titleId string, playFabId string, secretKey string, logger Logger) (map[string]interface{}, error) {
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"Keys":      keys,
 		"PlayFabId": playFabId,
@@ -106,7 +116,7 @@ func GetUserReadOnlyData(keys []string, titleId string, playFabId string, secret
 		return nil, err
 	}
 
-	body, err := request("POST", titleId, "Server", "GetUserReadOnlyData", requestBody, secretKey)
+	body, err := request("POST", titleId, "Server", "GetUserReadOnlyData", requestBody, secretKey, logger)
 
 	if err != nil {
 		return nil, err
@@ -132,26 +142,26 @@ func GetUserReadOnlyData(keys []string, titleId string, playFabId string, secret
 	return keysData, nil
 }
 
-func GrantItemsToUser(itemIds []string, titleId string, playFabId string, secretKey string, catalogVersion string) ([]interface{}, error) {
+func GrantItemsToUser(itemIds []string, titleId string, playFabId string, secretKey string, catalogVersion string, logger Logger) ([]interface{}, error) {
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"ItemIds":        itemIds,
 		"PlayFabId":      playFabId,
 		"CatalogVersion": catalogVersion,
 	})
 
-	fmt.Printf("grant items to user playfabId: %s, itemIds %s", playFabId, itemIds)
+	logger.Debug("grant items to user playfabId: %s, itemIds %s", playFabId, itemIds)
 
 	if err != nil {
-		fmt.Printf("Failed Grant Items To User %v", err)
+		logger.Debug("Failed Grant Items To User %v", err)
 		return nil, err
 	}
 
-	body, err := request("POST", titleId, "Server", "GrantItemsToUser", requestBody, secretKey)
+	body, err := request("POST", titleId, "Server", "GrantItemsToUser", requestBody, secretKey, logger)
 
-	fmt.Printf("grant items response %s", body)
+	logger.Debug("grant items response %s", body)
 
 	if err != nil {
-		fmt.Printf("Failed Grant Items To User %v", err)
+		logger.Debug("Failed Grant Items To User %v", err)
 		return nil, err
 	}
 
@@ -175,8 +185,8 @@ func GrantItemsToUser(itemIds []string, titleId string, playFabId string, secret
 	return itemsRes, nil
 }
 
-func GetPlayerStatistics(statisitcsIds []string, titleId string, playFabId string, secretKey string) ([]map[string]interface{}, error) {
-	fmt.Println("starting ReadPlayerStatistics")
+func GetPlayerStatistics(statisitcsIds []string, titleId string, playFabId string, secretKey string, logger Logger) ([]map[string]interface{}, error) {
+	logger.Debug("starting ReadPlayerStatistics")
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"PlayFabId":       playFabId,
 		"StatisticsNames": statisitcsIds,
@@ -186,7 +196,7 @@ func GetPlayerStatistics(statisitcsIds []string, titleId string, playFabId strin
 		return nil, err
 	}
 
-	body, err := request("GET", titleId, "Server", "GetPlayerStatistics", requestBody, secretKey)
+	body, err := request("GET", titleId, "Server", "GetPlayerStatistics", requestBody, secretKey, logger)
 
 	if err != nil {
 		return nil, err
@@ -212,8 +222,8 @@ func GetPlayerStatistics(statisitcsIds []string, titleId string, playFabId strin
 	return statisitcs, nil
 }
 
-func GetPlayerCombinedInfo(reqInfo map[string]interface{}, titleId string, playFabId string, secretKey string) (map[string]interface{}, error) {
-	fmt.Println("starting getplayercombinedinfo")
+func GetPlayerCombinedInfo(reqInfo map[string]interface{}, titleId string, playFabId string, secretKey string, logger Logger) (map[string]interface{}, error) {
+	logger.Debug("starting getplayercombinedinfo")
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"PlayFabId":             playFabId,
 		"InfoRequestParameters": reqInfo,
@@ -223,7 +233,7 @@ func GetPlayerCombinedInfo(reqInfo map[string]interface{}, titleId string, playF
 		return nil, err
 	}
 
-	body, err := request("POST", titleId, "Server", "GetPlayerCombinedInfo", requestBody, secretKey)
+	body, err := request("POST", titleId, "Server", "GetPlayerCombinedInfo", requestBody, secretKey, logger)
 
 	if err != nil {
 		return nil, err
@@ -248,8 +258,8 @@ func GetPlayerCombinedInfo(reqInfo map[string]interface{}, titleId string, playF
 	return infoRes, nil
 }
 
-func UpdatePlayerStatistics(statistics []interface{}, titleId string, playFabId string, secretKey string) error {
-	fmt.Println("starting UpdatePlayerStatistics")
+func UpdatePlayerStatistics(statistics []interface{}, titleId string, playFabId string, secretKey string, logger Logger) error {
+	logger.Debug("starting UpdatePlayerStatistics")
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"PlayFabId":  playFabId,
 		"Statistics": statistics,
@@ -259,7 +269,7 @@ func UpdatePlayerStatistics(statistics []interface{}, titleId string, playFabId 
 		return err
 	}
 
-	_, err = request("POST", titleId, "Server", "UpdatePlayerStatistics", requestBody, secretKey)
+	_, err = request("POST", titleId, "Server", "UpdatePlayerStatistics", requestBody, secretKey, logger)
 
 	if err != nil {
 		return err
@@ -268,8 +278,8 @@ func UpdatePlayerStatistics(statistics []interface{}, titleId string, playFabId 
 	return nil
 }
 
-func GetTitleInternalData(keys []string, titleId string, secretKey string) (map[string]interface{}, error) {
-	fmt.Println("starting GetTitleInternalData")
+func GetTitleInternalData(keys []string, titleId string, secretKey string, logger Logger) (map[string]interface{}, error) {
+	logger.Debug("starting GetTitleInternalData")
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"Keys": keys,
 	})
@@ -278,7 +288,7 @@ func GetTitleInternalData(keys []string, titleId string, secretKey string) (map[
 		return nil, err
 	}
 
-	body, err := request("POST", titleId, "Server", "GetTitleInternalData", requestBody, secretKey)
+	body, err := request("POST", titleId, "Server", "GetTitleInternalData", requestBody, secretKey, logger)
 
 	if err != nil {
 		return nil, err
@@ -300,8 +310,8 @@ func GetTitleInternalData(keys []string, titleId string, secretKey string) (map[
 	return internalData, nil
 }
 
-func GetTitleData(keys []string, titleId string, secretKey string) (map[string]interface{}, error) {
-	fmt.Println("starting GetTitleData")
+func GetTitleData(keys []string, titleId string, secretKey string, logger Logger) (map[string]interface{}, error) {
+	logger.Debug("starting GetTitleData")
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"Keys": keys,
 	})
@@ -310,7 +320,7 @@ func GetTitleData(keys []string, titleId string, secretKey string) (map[string]i
 		return nil, err
 	}
 
-	body, err := request("POST", titleId, "Server", "GetTitleData", requestBody, secretKey)
+	body, err := request("POST", titleId, "Server", "GetTitleData", requestBody, secretKey, logger)
 
 	if err != nil {
 		return nil, err
@@ -332,8 +342,8 @@ func GetTitleData(keys []string, titleId string, secretKey string) (map[string]i
 	return titlelData, nil
 }
 
-func GetStoreItems(storeId string, titleId string, catalogVersion string, secretKey string) ([]interface{}, error) {
-	fmt.Println("starting GetStoreItems")
+func GetStoreItems(storeId string, titleId string, catalogVersion string, secretKey string, logger Logger) ([]interface{}, error) {
+	logger.Debug("starting GetStoreItems")
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"CatalogVersion": catalogVersion,
 		"StoreId":        storeId,
@@ -343,7 +353,7 @@ func GetStoreItems(storeId string, titleId string, catalogVersion string, secret
 		return nil, err
 	}
 
-	body, err := request("POST", titleId, "Server", "GetStoreItems", requestBody, secretKey)
+	body, err := request("POST", titleId, "Server", "GetStoreItems", requestBody, secretKey, logger)
 
 	if err != nil {
 		return nil, err
@@ -363,12 +373,12 @@ func GetStoreItems(storeId string, titleId string, catalogVersion string, secret
 	if !ok {
 		return nil, fmt.Errorf("Failed to parse GetStoreItem result")
 	}
-
+	logger.Debug("Finished GetStoreItems")
 	return storeItems, nil
 }
 
-func GetStore(storeId string, titleId string, catalogVersion string, secretKey string) (map[string]interface{}, error) {
-	fmt.Println("starting GetStore")
+func GetStore(storeId string, titleId string, catalogVersion string, secretKey string, logger Logger) (map[string]interface{}, error) {
+	logger.Debug("starting GetStore")
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"CatalogVersion": catalogVersion,
 		"StoreId":        storeId,
@@ -378,7 +388,7 @@ func GetStore(storeId string, titleId string, catalogVersion string, secretKey s
 		return nil, err
 	}
 
-	body, err := request("POST", titleId, "Server", "GetStoreItems", requestBody, secretKey)
+	body, err := request("POST", titleId, "Server", "GetStoreItems", requestBody, secretKey, logger)
 
 	if err != nil {
 		return nil, err
@@ -407,8 +417,8 @@ func GetStore(storeId string, titleId string, catalogVersion string, secretKey s
 	return metadata, nil
 }
 
-func GetCatalogItems(catalogVersion string, titleId string, secretKey string) ([]interface{}, error) {
-	fmt.Println("starting GetCatalogItems")
+func GetCatalogItems(catalogVersion string, titleId string, secretKey string, logger Logger) ([]interface{}, error) {
+	logger.Debug("starting GetCatalogItems")
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"CatalogVersion": catalogVersion,
 	})
@@ -417,7 +427,7 @@ func GetCatalogItems(catalogVersion string, titleId string, secretKey string) ([
 		return nil, err
 	}
 
-	body, err := request("POST", titleId, "Server", "GetCatalogItems", requestBody, secretKey)
+	body, err := request("POST", titleId, "Server", "GetCatalogItems", requestBody, secretKey, logger)
 
 	if err != nil {
 		return nil, err
@@ -441,7 +451,7 @@ func GetCatalogItems(catalogVersion string, titleId string, secretKey string) ([
 	return catalogItems, nil
 }
 
-func GetUserInventory(playFabId string, titleId string, secretKey string) ([]interface{}, error) {
+func GetUserInventory(playFabId string, titleId string, secretKey string, logger Logger) ([]interface{}, error) {
 
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"PlayFabId": playFabId,
@@ -451,7 +461,7 @@ func GetUserInventory(playFabId string, titleId string, secretKey string) ([]int
 		return nil, err
 	}
 
-	body, err := request("POST", titleId, "Server", "GetUserInventory", requestBody, secretKey)
+	body, err := request("POST", titleId, "Server", "GetUserInventory", requestBody, secretKey, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -474,7 +484,7 @@ func GetUserInventory(playFabId string, titleId string, secretKey string) ([]int
 	return itemInstances, nil
 }
 
-func GetVirtualCurrency(playFabId string, titleId string, secretKey string) (map[string]interface{}, error) {
+func GetVirtualCurrency(playFabId string, titleId string, secretKey string, logger Logger) (map[string]interface{}, error) {
 
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"PlayFabId": playFabId,
@@ -484,7 +494,7 @@ func GetVirtualCurrency(playFabId string, titleId string, secretKey string) (map
 		return nil, err
 	}
 
-	body, err := request("POST", titleId, "Server", "GetUserInventory", requestBody, secretKey)
+	body, err := request("POST", titleId, "Server", "GetUserInventory", requestBody, secretKey, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -507,8 +517,8 @@ func GetVirtualCurrency(playFabId string, titleId string, secretKey string) (map
 	return virtualCurrency, nil
 }
 
-func AddUserVirtualCurrency(amount uint64, titleId string, currencyId string, playFabId string, secretKey string) (map[string]interface{}, error) {
-	fmt.Println("starting AddUserVirtualCurrency")
+func AddUserVirtualCurrency(amount uint64, titleId string, currencyId string, playFabId string, secretKey string, logger Logger) (map[string]interface{}, error) {
+	logger.Debug("starting AddUserVirtualCurrency")
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"Amount":          amount,
 		"PlayFabId":       playFabId,
@@ -519,7 +529,7 @@ func AddUserVirtualCurrency(amount uint64, titleId string, currencyId string, pl
 		return nil, err
 	}
 
-	body, err := request("POST", titleId, "Server", "AddUserVirtualCurrency", requestBody, secretKey)
+	body, err := request("POST", titleId, "Server", "AddUserVirtualCurrency", requestBody, secretKey, logger)
 
 	if err != nil {
 		return nil, err
@@ -538,8 +548,8 @@ func AddUserVirtualCurrency(amount uint64, titleId string, currencyId string, pl
 	return data, nil
 }
 
-func SubtractUserVirtualCurrency(amount uint64, titleId string, currencyId string, playFabId string, secretKey string) (map[string]interface{}, error) {
-	fmt.Println("starting SubtractUserVirtualCurrency")
+func SubtractUserVirtualCurrency(amount uint64, titleId string, currencyId string, playFabId string, secretKey string, logger Logger) (map[string]interface{}, error) {
+	logger.Debug("starting SubtractUserVirtualCurrency")
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"Amount":          amount,
 		"PlayFabId":       playFabId,
@@ -550,7 +560,7 @@ func SubtractUserVirtualCurrency(amount uint64, titleId string, currencyId strin
 		return nil, err
 	}
 
-	body, err := request("POST", titleId, "Server", "SubtractUserVirtualCurrency", requestBody, secretKey)
+	body, err := request("POST", titleId, "Server", "SubtractUserVirtualCurrency", requestBody, secretKey, logger)
 
 	if err != nil {
 		return nil, err
@@ -569,7 +579,7 @@ func SubtractUserVirtualCurrency(amount uint64, titleId string, currencyId strin
 	return data, nil
 }
 
-func ConsumeItem(playFabId string, titleId string, secretKey string, itemInstanceId string, consumeCount int) (interface{}, error) {
+func ConsumeItem(playFabId string, titleId string, secretKey string, itemInstanceId string, consumeCount int, logger Logger) (interface{}, error) {
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"PlayFabId":      playFabId,
 		"ItemInstanceId": itemInstanceId,
@@ -580,7 +590,7 @@ func ConsumeItem(playFabId string, titleId string, secretKey string, itemInstanc
 		return nil, err
 	}
 
-	body, err := request("POST", titleId, "Server", "ConsumeItem", requestBody, secretKey)
+	body, err := request("POST", titleId, "Server", "ConsumeItem", requestBody, secretKey, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -588,10 +598,169 @@ func ConsumeItem(playFabId string, titleId string, secretKey string, itemInstanc
 	return body, nil
 }
 
-func request(method string, titleId string, api string, funcName string, reqBody []byte, secretKey string) ([]byte, error) {
+func request(method string, titleId string, api string, funcName string, reqBody []byte, secretKey string, logger Logger) (d []byte, err error) {
+
+	counter := 0
+
+	for counter <= Retries {
+		counter++
+		logger.Debug("Starting retry %d for playfab request", counter)
+		d, oerr := _request(method, titleId, api, funcName, reqBody, secretKey)
+		if oerr != nil {
+			err, isConflictError := isConflictError(oerr)
+			if err != nil {
+				return d, err
+			}
+
+			if !isConflictError {
+				return d, oerr
+			}
+
+			time.Sleep(1 * time.Second)
+
+		} else {
+			return d, nil
+		}
+	}
+
+	return d, err
+}
+
+func RevokeInventoryItems(revokeInventoryItems []map[string]interface{}, titleId string, secretKey string, logger Logger) error {
+
+	// Make sure there are no empty/nil cells in the slice
+	newRevokeInventoryItems := make([]interface{}, 0, len(revokeInventoryItems))
+	for _, item := range revokeInventoryItems {
+		if item != nil {
+			newRevokeInventoryItems = append(newRevokeInventoryItems, item)
+		}
+	}
+
+	// Nothing to delete - do nothing
+	if len(newRevokeInventoryItems) == 0 {
+		return nil
+	}
+
+	requestBody, err := json.Marshal(map[string]interface{}{
+		"Items": newRevokeInventoryItems,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	_, err = request("POST", titleId, "Server", "RevokeInventoryItems", requestBody, secretKey, logger)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func SendPushNotification(message string, recipient string, titleId string, secretKey string, logger Logger) error {
+	requestBody, err := json.Marshal(map[string]interface{}{
+		"Message":   message,
+		"Recipient": recipient,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	_, err = request("POST", titleId, "Server", "SendPushNotification", requestBody, secretKey, logger)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func AddPlayerTag(tag string, titleId string, playFabId string, secretKey string, logger Logger) error {
+	requestBody, err := json.Marshal(map[string]interface{}{
+		"PlayFabId": playFabId,
+		"TagName":   tag,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	_, err = request("POST", titleId, "Server", "AddPlayerTag", requestBody, secretKey, logger)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func RemovePlayerTag(tag string, titleId string, playFabId string, secretKey string, logger Logger) error {
+	requestBody, err := json.Marshal(map[string]interface{}{
+		"PlayFabId": playFabId,
+		"TagName":   tag,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	_, err = request("POST", titleId, "Server", "RemovePlayerTag", requestBody, secretKey, logger)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func GetPlayerTags(titleId string, playFabId string, secretKey string, logger Logger) ([]string, error) {
+	requestBody, err := json.Marshal(map[string]interface{}{
+		"PlayFabId": playFabId,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	d, err := request("POST", titleId, "Server", "GetPlayerTags", requestBody, secretKey, logger)
+
+	if err != nil {
+		return nil, err
+	}
+
+	res := make(map[string]interface{})
+	if err := json.Unmarshal(d, &res); err != nil {
+		return nil, err
+	}
+
+	data, ok := res["data"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("Failed to parse GetPlayerCombinedInfo result")
+	}
+
+	t, ok := data["Tags"].([]interface{})
+
+	tags := make([]string, 0)
+
+	for i, _ := range t {
+		v, ok := t[i].(string)
+
+		if !ok {
+			return nil, fmt.Errorf("Failed to parse tags result")
+		}
+
+		tags = append(tags, v)
+	}
+
+	return tags, nil
+}
+
+func _request(method string, titleId string, api string, funcName string, reqBody []byte, secretKey string) ([]byte, error) {
 	hc := &http.Client{}
 
-	req, err := http.NewRequest(method, fmt.Sprintf(url, titleId, api, funcName), bytes.NewBuffer(reqBody))
+	req, err := http.NewRequest(method, fmt.Sprintf(Url, titleId, api, funcName), bytes.NewBuffer(reqBody))
 
 	if err != nil {
 		return nil, err
@@ -619,4 +788,31 @@ func request(method string, titleId string, api string, funcName string, reqBody
 	}
 
 	return resBody, nil
+}
+
+func isConflictError(oerr error) (error, bool) {
+	errorData := make(map[string]interface{})
+	serr, ok := oerr.(*PlayFabError)
+	if !ok {
+		err := fmt.Errorf("Failed to convert to playfab error")
+		return err, false
+	}
+
+	err := json.Unmarshal(serr.Body, &errorData)
+	if err != nil {
+		return err, false
+	}
+
+	errStatus, ok := errorData["status"].(string)
+
+	if !ok {
+		err := fmt.Errorf("Failed to parse status from error")
+		return err, false
+	}
+
+	if errStatus != ConflictStatus {
+		return nil, false
+	}
+
+	return nil, true
 }
