@@ -660,8 +660,8 @@ func SendPushNotification(message string, recipient string, titleId string, secr
 
 func AddPlayerTag(tag string, titleId string, playFabId string, secretKey string, logger Logger) error {
 	requestBody, err := json.Marshal(map[string]interface{}{
-		"PlayFabId":  playFabId,
-		"TagName": tag,
+		"PlayFabId": playFabId,
+		"TagName":   tag,
 	})
 
 	if err != nil {
@@ -679,8 +679,8 @@ func AddPlayerTag(tag string, titleId string, playFabId string, secretKey string
 
 func RemovePlayerTag(tag string, titleId string, playFabId string, secretKey string, logger Logger) error {
 	requestBody, err := json.Marshal(map[string]interface{}{
-		"PlayFabId":  playFabId,
-		"TagName": tag,
+		"PlayFabId": playFabId,
+		"TagName":   tag,
 	})
 
 	if err != nil {
@@ -698,7 +698,7 @@ func RemovePlayerTag(tag string, titleId string, playFabId string, secretKey str
 
 func GetPlayerTags(titleId string, playFabId string, secretKey string, logger Logger) ([]string, error) {
 	requestBody, err := json.Marshal(map[string]interface{}{
-		"PlayFabId":  playFabId,
+		"PlayFabId": playFabId,
 	})
 
 	if err != nil {
@@ -781,6 +781,7 @@ func isConflictError(oerr error) (error, bool) {
 
 	err := json.Unmarshal(serr.Body, &errorData)
 	if err != nil {
+		err := fmt.Errorf(err.Error() + " originalError: " + string(serr.Body))
 		return err, false
 	}
 
