@@ -781,6 +781,7 @@ func isConflictError(oerr error) (error, bool) {
 
 	err := json.Unmarshal(serr.Body, &errorData)
 	if err != nil {
+		err := fmt.Errorf(err.Error() + " originalError: " + string(serr.Body))
 		return err, false
 	}
 
