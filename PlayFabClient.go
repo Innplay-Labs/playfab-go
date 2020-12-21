@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -588,17 +589,26 @@ func request(method string, titleId string, api string, funcName string, reqBody
 		logger.Debug("Starting retry %d for playfab request", counter)
 		d, oerr := _request(method, titleId, api, funcName, reqBody, secretKey)
 		if oerr != nil {
-			err, isConflictError := isConflictError(oerr)
+			errorData := make(map[string]interface{})
+			errorData, err = ConvertToPlayFabErrorJson(oerr)
 			if err != nil {
-				return d, err
-			}
+				isServiceUnavailableError := strings.Contains(err.Error(), "Service Unavailable")
+				isBadRequestError := strings.Contains(err.Error(), "Bad Request")
+				if !isServiceUnavailableError && !isBadRequestError {
+					return d, err
+				}
+			} else {
+				err, isConflictError := isConflictError(errorData)
+				if err != nil {
+					return d, err
+				}
 
-			if !isConflictError {
-				return d, oerr
+				if !isConflictError {
+					return d, oerr
+				}
 			}
 
 			time.Sleep(1 * time.Second)
-
 		} else {
 			return d, nil
 		}
@@ -771,20 +781,7 @@ func _request(method string, titleId string, api string, funcName string, reqBod
 	return resBody, nil
 }
 
-func isConflictError(oerr error) (error, bool) {
-	errorData := make(map[string]interface{})
-	serr, ok := oerr.(*PlayFabError)
-	if !ok {
-		err := fmt.Errorf("Failed to convert to playfab error")
-		return err, false
-	}
-
-	err := json.Unmarshal(serr.Body, &errorData)
-	if err != nil {
-		err := fmt.Errorf(err.Error() + " originalError: " + string(serr.Body))
-		return err, false
-	}
-
+func isConflictError(errorData map[string]interface{}) (error, bool) {
 	errStatus, ok := errorData["status"].(string)
 
 	if !ok {
@@ -797,4 +794,21 @@ func isConflictError(oerr error) (error, bool) {
 	}
 
 	return nil, true
+}
+
+func ConvertToPlayFabErrorJson(oerr error) (map[string]interface{}, error) {
+	errorData := make(map[string]interface{})
+	serr, ok := oerr.(*PlayFabError)
+	if !ok {
+		err := fmt.Errorf("Failed to convert to playfab error")
+		return nil, err
+	}
+
+	err := json.Unmarshal(serr.Body, &errorData)
+	if err != nil {
+		err := fmt.Errorf(err.Error() + " originalError: " + string(serr.Body))
+		return nil, err
+	}
+
+	return errorData, nil
 }
