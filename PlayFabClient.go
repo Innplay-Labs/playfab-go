@@ -597,6 +597,7 @@ func request(method string, titleId string, api string, funcName string, reqBody
 				if !isServiceUnavailableError && !isBadRequestError {
 					return d, err
 				}
+				logger.Error("waiting for retry after error - %s", err.Error())
 			} else {
 				err, isConflictError := isConflictError(errorData)
 				if err != nil {
@@ -607,7 +608,6 @@ func request(method string, titleId string, api string, funcName string, reqBody
 					return d, oerr
 				}
 			}
-
 			time.Sleep(1 * time.Second)
 		} else {
 			return d, nil
