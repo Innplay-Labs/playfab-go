@@ -324,11 +324,12 @@ func GetTitleData(keys []string, titleId string, secretKey string, logger Logger
 	return titlelData, nil
 }
 
-func GetStoreItems(storeId string, titleId string, catalogVersion string, secretKey string, logger Logger) ([]interface{}, error) {
+func GetStoreItems(storeId string, titleId string, playfabId string, catalogVersion string, secretKey string, logger Logger) ([]interface{}, error) {
 	logger.Debug("starting GetStoreItems")
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"CatalogVersion": catalogVersion,
 		"StoreId":        storeId,
+		"PlayFabId":	  playfabId,
 	})
 
 	if err != nil {
@@ -759,7 +760,6 @@ func _request(method string, titleId string, api string, funcName string, reqBod
 
 	req.Header.Add("Content-type", "application/json")
 	req.Header.Add("X-SecretKey", secretKey)
-
 	resp, err := hc.Do(req)
 
 	if err != nil {
