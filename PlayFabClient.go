@@ -356,6 +356,7 @@ func GetStoreItems(storeId string, titleId string, playfabId string, catalogVers
 	if !ok {
 		return nil, fmt.Errorf("Failed to parse GetStoreItem result")
 	}
+	storeItems[0].(map[string]interface{})["StoreId"] = data["StoreId"].(string)
 	logger.Debug("Finished GetStoreItems")
 	return storeItems, nil
 }
