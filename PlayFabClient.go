@@ -356,7 +356,10 @@ func GetStoreItems(storeId string, titleId string, playfabId string, catalogVers
 	if !ok {
 		return nil, nil, fmt.Errorf("Failed to parse GetStoreItem result")
 	}
-	StoreId := data["StoreId"]
+	StoreId, ok := data["StoreId"].(string)
+	if !ok {
+		return nil, "", fmt.Errorf("Failed to parse StoreId result")
+	}
 	logger.Debug("Finished GetStoreItems")
 	return storeItems, StoreId, nil
 }
