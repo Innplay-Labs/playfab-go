@@ -324,7 +324,7 @@ func GetTitleData(keys []string, titleId string, secretKey string, logger Logger
 	return titlelData, nil
 }
 
-func GetStoreItems(storeId string, titleId string, playfabId string, catalogVersion string, secretKey string, logger Logger) ([]interface{}, interface{}, error) {
+func GetStoreItems(storeId string, titleId string, playfabId string, catalogVersion string, secretKey string, logger Logger) ([]interface{}, string, error) {
 	logger.Debug("starting GetStoreItems")
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"CatalogVersion": catalogVersion,
