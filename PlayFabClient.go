@@ -333,32 +333,32 @@ func GetStoreItems(storeId string, titleId string, playfabId string, catalogVers
 	})
 
 	if err != nil {
-		return nil, nil, err
+		return nil, "", err
 	}
 
 	body, err := request("POST", titleId, "Server", "GetStoreItems", requestBody, secretKey, logger)
 
 	if err != nil {
-		return nil, nil, err
+		return nil, "", err
 	}
 
 	res := make(map[string]interface{})
 	if err := json.Unmarshal(body, &res); err != nil {
-		return nil, nil, err
+		return nil, "", err
 	}
 
 	data, ok := res["data"].(map[string]interface{})
 	if !ok {
-		return nil, nil, fmt.Errorf("Failed to parse GetStoreItem result")
+		return nil, "", fmt.Errorf("failed to parse GetStoreItem result")
 	}
 
 	storeItems, ok := data["Store"].([]interface{})
 	if !ok {
-		return nil, nil, fmt.Errorf("Failed to parse GetStoreItem result")
+		return nil, "", fmt.Errorf("failed to parse GetStoreItem result")
 	}
 	StoreId, ok := data["StoreId"].(string)
 	if !ok {
-		return nil, "", fmt.Errorf("Failed to parse StoreId result")
+		return nil, "", fmt.Errorf("failed to parse StoreId result")
 	}
 	logger.Debug("Finished GetStoreItems")
 	return storeItems, StoreId, nil
