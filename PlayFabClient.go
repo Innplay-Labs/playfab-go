@@ -324,7 +324,7 @@ func GetTitleData(keys []string, titleId string, secretKey string, logger Logger
 	return titlelData, nil
 }
 
-func GetStoreItems(storeId string, titleId string, playfabId string, catalogVersion string, secretKey string, logger Logger) ([]interface{}, error) {
+func GetStoreItems(storeId string, titleId string, playfabId string, catalogVersion string, secretKey string, logger Logger) ([]interface{}, string, error) {
 	logger.Debug("starting GetStoreItems")
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"CatalogVersion": catalogVersion,
@@ -333,31 +333,35 @@ func GetStoreItems(storeId string, titleId string, playfabId string, catalogVers
 	})
 
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	body, err := request("POST", titleId, "Server", "GetStoreItems", requestBody, secretKey, logger)
 
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	res := make(map[string]interface{})
 	if err := json.Unmarshal(body, &res); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	data, ok := res["data"].(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("Failed to parse GetStoreItem result")
+		return nil, "", fmt.Errorf("failed to parse GetStoreItem result")
 	}
 
 	storeItems, ok := data["Store"].([]interface{})
 	if !ok {
-		return nil, fmt.Errorf("Failed to parse GetStoreItem result")
+		return nil, "", fmt.Errorf("failed to parse GetStoreItem result")
+	}
+	StoreId, ok := data["StoreId"].(string)
+	if !ok {
+		return nil, "", fmt.Errorf("failed to parse StoreId result")
 	}
 	logger.Debug("Finished GetStoreItems")
-	return storeItems, nil
+	return storeItems, StoreId, nil
 }
 
 func GetStore(storeId string, titleId string, catalogVersion string, secretKey string, logger Logger) (map[string]interface{}, error) {
