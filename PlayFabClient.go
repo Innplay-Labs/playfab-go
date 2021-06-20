@@ -599,7 +599,8 @@ func request(method string, titleId string, api string, funcName string, reqBody
 			if err != nil {
 				isServiceUnavailableError := strings.Contains(err.Error(), "Service Unavailable")
 				isBadRequestError := strings.Contains(err.Error(), "Bad Request")
-				if !isServiceUnavailableError && !isBadRequestError {
+				isBadGateWay := strings.Contains(err.Error(), "Bad Gateway")
+				if !isServiceUnavailableError && !isBadRequestError && !isBadGateWay {
 					return d, err
 				}
 				logger.Error("waiting for retry after error - %s", err.Error())
