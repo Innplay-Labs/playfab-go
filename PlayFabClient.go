@@ -329,7 +329,7 @@ func GetStoreItems(storeId string, titleId string, playfabId string, catalogVers
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"CatalogVersion": catalogVersion,
 		"StoreId":        storeId,
-		"PlayFabId":	  playfabId,
+		"PlayFabId":      playfabId,
 	})
 
 	if err != nil {
@@ -436,6 +436,41 @@ func GetCatalogItems(catalogVersion string, titleId string, secretKey string, lo
 	}
 
 	return catalogItems, nil
+}
+
+func GetRandomResultTables(catalogVersion string, titleId string, tableIds []string, secretKey string, logger Logger) (map[string]interface{}, error) {
+	logger.Debug("starting GetCatalogItems")
+	requestBody, err := json.Marshal(map[string]interface{}{
+		"CatalogVersion": catalogVersion,
+		"TableIDs":       tableIds,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := request("POST", titleId, "Server", "GetRandomResultTables", requestBody, secretKey, logger)
+
+	if err != nil {
+		return nil, err
+	}
+
+	res := make(map[string]interface{})
+	if err := json.Unmarshal(body, &res); err != nil {
+		return nil, err
+	}
+
+	data, ok := res["data"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("failed to parse GetRandomResultTables result")
+	}
+
+	dropTables, ok := data["Tables"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("failed to parse GetRandomResultTables result")
+	}
+
+	return dropTables, nil
 }
 
 func GetUserInventory(playFabId string, titleId string, secretKey string, logger Logger) ([]interface{}, error) {
