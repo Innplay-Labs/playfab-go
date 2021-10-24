@@ -439,7 +439,7 @@ func GetCatalogItems(catalogVersion string, titleId string, secretKey string, lo
 }
 
 func GetRandomResultTables(catalogVersion string, titleId string, tableIds []string, secretKey string, logger Logger) (map[string]interface{}, error) {
-	logger.Debug("starting GetCatalogItems")
+	logger.Debug("starting GetRandomResultTables")
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"CatalogVersion": catalogVersion,
 		"TableIDs":       tableIds,
