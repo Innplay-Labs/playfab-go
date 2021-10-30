@@ -24,10 +24,12 @@ type Logger interface {
 type PlayFabError struct {
 	originError error
 	Body        []byte
+	Method      string
+	RespCode    int
 }
 
 func (e *PlayFabError) Error() string {
-	return e.originError.Error()
+	return fmt.Sprintf("%s - %s", e.Method, e.originError.Error())
 }
 
 func EvaluateRandomTable(tableId string, titleId string, playFabId string, secretKey string, catalogVersion string, logger Logger) (string, error) {
@@ -329,7 +331,7 @@ func GetStoreItems(storeId string, titleId string, playfabId string, catalogVers
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"CatalogVersion": catalogVersion,
 		"StoreId":        storeId,
-		"PlayFabId":	  playfabId,
+		"PlayFabId":      playfabId,
 	})
 
 	if err != nil {
@@ -741,7 +743,7 @@ func GetPlayerTags(titleId string, playFabId string, secretKey string, logger Lo
 
 	tags := make([]string, 0)
 
-	for i, _ := range t {
+	for i := range t {
 		v, ok := t[i].(string)
 
 		if !ok {
@@ -780,7 +782,12 @@ func _request(method string, titleId string, api string, funcName string, reqBod
 	}
 
 	if resp.StatusCode != 200 {
-		return resBody, &PlayFabError{fmt.Errorf("Failed To Process Request With status code %d: %s", resp.StatusCode, string(resBody)), resBody}
+		return resBody, &PlayFabError{
+			originError: fmt.Errorf("Failed To Process Request With status code %d: %s", resp.StatusCode, string(resBody)),
+			Body:        resBody,
+			Method:      funcName,
+			RespCode:    resp.StatusCode,
+		}
 	}
 
 	return resBody, nil
