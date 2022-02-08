@@ -10,9 +10,9 @@ import (
 	"time"
 )
 
-const Url = "https://%s.playfabapi.com/%s/%s"
-const Retries = 3
-const ConflictStatus = "Conflict"
+const url = "https://%s.playfabapi.com/%s/%s"
+const retries = 3
+const conflictStatus = "Conflict"
 
 type Logger interface {
 	Debug(format string, v ...interface{})
@@ -32,18 +32,65 @@ func (e *PlayFabError) Error() string {
 	return fmt.Sprintf("%s - %s", e.Method, e.originError.Error())
 }
 
-func EvaluateRandomTable(tableId string, titleId string, playFabId string, secretKey string, catalogVersion string, logger Logger) (string, error) {
+type Option func(pf *PlayFab)
+
+func WithLogger(logger Logger) Option {
+	return func(pf *PlayFab) {
+		pf.logger = logger
+	}
+}
+
+type PlayFab struct {
+	logger         Logger
+	secret         string
+	catalogVersion string
+	titleId        string
+	hc             *http.Client
+}
+
+func New(secret, titleId, catalogVersion string, opts ...Option) (*PlayFab, error) {
+	switch "" {
+	case secret:
+		return nil, fmt.Errorf("secret is required")
+	case catalogVersion:
+		return nil, fmt.Errorf("catalog version is required")
+	case titleId:
+		return nil, fmt.Errorf("titleId is required")
+	}
+	transport := &http.Transport{
+		MaxIdleConns:        100,
+		MaxConnsPerHost:     100,
+		MaxIdleConnsPerHost: 100,
+		IdleConnTimeout:     time.Minute * 1,
+	}
+	pf := &PlayFab{
+		secret:         secret,
+		catalogVersion: catalogVersion,
+		titleId:        titleId,
+		logger:         &noopLogger{},
+		hc: &http.Client{
+			Transport: transport,
+			Timeout:   time.Second * 10,
+		},
+	}
+	for _, opt := range opts {
+		opt(pf)
+	}
+	return pf, nil
+}
+
+func (pf *PlayFab) EvaluateRandomTable(tableId string, playFabId string) (string, error) {
 	requestBody, err := json.Marshal(map[string]string{
 		"TableId":        tableId,
 		"PlayFabId":      playFabId,
-		"CatalogVersion": catalogVersion,
+		"CatalogVersion": pf.catalogVersion,
 	})
 
 	if err != nil {
 		return "", err
 	}
 
-	body, err := request("POST", titleId, "Server", "EvaluateRandomResultTable", requestBody, secretKey, logger)
+	body, err := pf.request("POST", "Server", "EvaluateRandomResultTable", requestBody)
 
 	if err != nil {
 		return "", err
@@ -71,7 +118,7 @@ func EvaluateRandomTable(tableId string, titleId string, playFabId string, secre
 	return itemId, nil
 }
 
-func UpdateUserReadOnlyData(data map[string]string, titleId string, playFabId string, secretKey string, logger Logger) error {
+func (pf *PlayFab) UpdateUserReadOnlyData(data map[string]string, playFabId string) error {
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"Data":      data,
 		"PlayFabId": playFabId,
@@ -81,7 +128,7 @@ func UpdateUserReadOnlyData(data map[string]string, titleId string, playFabId st
 		return err
 	}
 
-	_, err = request("POST", titleId, "Server", "UpdateUserReadOnlyData", requestBody, secretKey, logger)
+	_, err = pf.request("POST", "Server", "UpdateUserReadOnlyData", requestBody)
 
 	if err != nil {
 		return err
@@ -90,7 +137,7 @@ func UpdateUserReadOnlyData(data map[string]string, titleId string, playFabId st
 	return nil
 }
 
-func GetUserReadOnlyData(keys []string, titleId string, playFabId string, secretKey string, logger Logger) (map[string]interface{}, error) {
+func (pf *PlayFab) GetUserReadOnlyData(keys []string, playFabId string) (map[string]interface{}, error) {
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"Keys":      keys,
 		"PlayFabId": playFabId,
@@ -100,7 +147,7 @@ func GetUserReadOnlyData(keys []string, titleId string, playFabId string, secret
 		return nil, err
 	}
 
-	body, err := request("POST", titleId, "Server", "GetUserReadOnlyData", requestBody, secretKey, logger)
+	body, err := pf.request("POST", "Server", "GetUserReadOnlyData", requestBody)
 
 	if err != nil {
 		return nil, err
@@ -126,26 +173,26 @@ func GetUserReadOnlyData(keys []string, titleId string, playFabId string, secret
 	return keysData, nil
 }
 
-func GrantItemsToUser(itemIds []string, titleId string, playFabId string, secretKey string, catalogVersion string, logger Logger) ([]interface{}, error) {
+func (pf *PlayFab) GrantItemsToUser(itemIds []string, playFabId string) ([]interface{}, error) {
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"ItemIds":        itemIds,
 		"PlayFabId":      playFabId,
-		"CatalogVersion": catalogVersion,
+		"CatalogVersion": pf.catalogVersion,
 	})
 
-	logger.Debug("grant items to user playfabId: %s, itemIds %s", playFabId, itemIds)
+	pf.logger.Debug("grant items to user playfabId: %s, itemIds %s", playFabId, itemIds)
 
 	if err != nil {
-		logger.Debug("Failed Grant Items To User %v", err)
+		pf.logger.Debug("Failed Grant Items To User %v", err)
 		return nil, err
 	}
 
-	body, err := request("POST", titleId, "Server", "GrantItemsToUser", requestBody, secretKey, logger)
+	body, err := pf.request("POST", "Server", "GrantItemsToUser", requestBody)
 
-	logger.Debug("grant items response %s", body)
+	pf.logger.Debug("grant items response %s", body)
 
 	if err != nil {
-		logger.Debug("Failed Grant Items To User %v", err)
+		pf.logger.Debug("Failed Grant Items To User %v", err)
 		return nil, err
 	}
 
@@ -169,8 +216,8 @@ func GrantItemsToUser(itemIds []string, titleId string, playFabId string, secret
 	return itemsRes, nil
 }
 
-func GetPlayerStatistics(statisitcsIds []string, titleId string, playFabId string, secretKey string, logger Logger) ([]map[string]interface{}, error) {
-	logger.Debug("starting ReadPlayerStatistics")
+func (pf *PlayFab) GetPlayerStatistics(statisitcsIds []string, playFabId string) ([]map[string]interface{}, error) {
+	pf.logger.Debug("starting ReadPlayerStatistics")
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"PlayFabId":       playFabId,
 		"StatisticsNames": statisitcsIds,
@@ -180,7 +227,7 @@ func GetPlayerStatistics(statisitcsIds []string, titleId string, playFabId strin
 		return nil, err
 	}
 
-	body, err := request("GET", titleId, "Server", "GetPlayerStatistics", requestBody, secretKey, logger)
+	body, err := pf.request("GET", "Server", "GetPlayerStatistics", requestBody)
 
 	if err != nil {
 		return nil, err
@@ -206,8 +253,8 @@ func GetPlayerStatistics(statisitcsIds []string, titleId string, playFabId strin
 	return statisitcs, nil
 }
 
-func GetPlayerCombinedInfo(reqInfo map[string]interface{}, titleId string, playFabId string, secretKey string, logger Logger) (map[string]interface{}, error) {
-	logger.Debug("starting getplayercombinedinfo")
+func (pf *PlayFab) GetPlayerCombinedInfo(reqInfo map[string]interface{}, playFabId string) (map[string]interface{}, error) {
+	pf.logger.Debug("starting getplayercombinedinfo")
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"PlayFabId":             playFabId,
 		"InfoRequestParameters": reqInfo,
@@ -217,7 +264,7 @@ func GetPlayerCombinedInfo(reqInfo map[string]interface{}, titleId string, playF
 		return nil, err
 	}
 
-	body, err := request("POST", titleId, "Server", "GetPlayerCombinedInfo", requestBody, secretKey, logger)
+	body, err := pf.request("POST", "Server", "GetPlayerCombinedInfo", requestBody)
 
 	if err != nil {
 		return nil, err
@@ -242,8 +289,8 @@ func GetPlayerCombinedInfo(reqInfo map[string]interface{}, titleId string, playF
 	return infoRes, nil
 }
 
-func UpdatePlayerStatistics(statistics []interface{}, titleId string, playFabId string, secretKey string, logger Logger) error {
-	logger.Debug("starting UpdatePlayerStatistics")
+func (pf *PlayFab) UpdatePlayerStatistics(statistics []interface{}, playFabId string) error {
+	pf.logger.Debug("starting UpdatePlayerStatistics")
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"PlayFabId":  playFabId,
 		"Statistics": statistics,
@@ -253,7 +300,7 @@ func UpdatePlayerStatistics(statistics []interface{}, titleId string, playFabId 
 		return err
 	}
 
-	_, err = request("POST", titleId, "Server", "UpdatePlayerStatistics", requestBody, secretKey, logger)
+	_, err = pf.request("POST", "Server", "UpdatePlayerStatistics", requestBody)
 
 	if err != nil {
 		return err
@@ -262,8 +309,8 @@ func UpdatePlayerStatistics(statistics []interface{}, titleId string, playFabId 
 	return nil
 }
 
-func GetTitleInternalData(keys []string, titleId string, secretKey string, logger Logger) (map[string]interface{}, error) {
-	logger.Debug("starting GetTitleInternalData")
+func (pf *PlayFab) GetTitleInternalData(keys []string) (map[string]interface{}, error) {
+	pf.logger.Debug("starting GetTitleInternalData")
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"Keys": keys,
 	})
@@ -272,7 +319,7 @@ func GetTitleInternalData(keys []string, titleId string, secretKey string, logge
 		return nil, err
 	}
 
-	body, err := request("POST", titleId, "Server", "GetTitleInternalData", requestBody, secretKey, logger)
+	body, err := pf.request("POST", "Server", "GetTitleInternalData", requestBody)
 
 	if err != nil {
 		return nil, err
@@ -294,8 +341,8 @@ func GetTitleInternalData(keys []string, titleId string, secretKey string, logge
 	return internalData, nil
 }
 
-func GetTitleData(keys []string, titleId string, secretKey string, logger Logger) (map[string]interface{}, error) {
-	logger.Debug("starting GetTitleData")
+func (pf *PlayFab) GetTitleData(keys []string) (map[string]interface{}, error) {
+	pf.logger.Debug("starting GetTitleData")
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"Keys": keys,
 	})
@@ -304,7 +351,7 @@ func GetTitleData(keys []string, titleId string, secretKey string, logger Logger
 		return nil, err
 	}
 
-	body, err := request("POST", titleId, "Server", "GetTitleData", requestBody, secretKey, logger)
+	body, err := pf.request("POST", "Server", "GetTitleData", requestBody)
 
 	if err != nil {
 		return nil, err
@@ -326,10 +373,10 @@ func GetTitleData(keys []string, titleId string, secretKey string, logger Logger
 	return titlelData, nil
 }
 
-func GetStoreItems(storeId string, titleId string, playfabId string, catalogVersion string, secretKey string, logger Logger) ([]interface{}, string, error) {
-	logger.Debug("starting GetStoreItems")
+func (pf *PlayFab) GetStoreItems(storeId string, playfabId string) ([]interface{}, string, error) {
+	pf.logger.Debug("starting GetStoreItems")
 	requestBody, err := json.Marshal(map[string]interface{}{
-		"CatalogVersion": catalogVersion,
+		"CatalogVersion": pf.catalogVersion,
 		"StoreId":        storeId,
 		"PlayFabId":      playfabId,
 	})
@@ -338,7 +385,7 @@ func GetStoreItems(storeId string, titleId string, playfabId string, catalogVers
 		return nil, "", err
 	}
 
-	body, err := request("POST", titleId, "Server", "GetStoreItems", requestBody, secretKey, logger)
+	body, err := pf.request("POST", "Server", "GetStoreItems", requestBody)
 
 	if err != nil {
 		return nil, "", err
@@ -362,14 +409,14 @@ func GetStoreItems(storeId string, titleId string, playfabId string, catalogVers
 	if !ok {
 		return nil, "", fmt.Errorf("failed to parse StoreId result")
 	}
-	logger.Debug("Finished GetStoreItems")
+	pf.logger.Debug("Finished GetStoreItems")
 	return storeItems, StoreId, nil
 }
 
-func GetStore(storeId string, titleId string, catalogVersion string, secretKey string, logger Logger) (map[string]interface{}, error) {
-	logger.Debug("starting GetStore")
+func (pf *PlayFab) GetStore(storeId string) (map[string]interface{}, error) {
+	pf.logger.Debug("starting GetStore")
 	requestBody, err := json.Marshal(map[string]interface{}{
-		"CatalogVersion": catalogVersion,
+		"CatalogVersion": pf.catalogVersion,
 		"StoreId":        storeId,
 	})
 
@@ -377,7 +424,7 @@ func GetStore(storeId string, titleId string, catalogVersion string, secretKey s
 		return nil, err
 	}
 
-	body, err := request("POST", titleId, "Server", "GetStoreItems", requestBody, secretKey, logger)
+	body, err := pf.request("POST", "Server", "GetStoreItems", requestBody)
 
 	if err != nil {
 		return nil, err
@@ -406,17 +453,17 @@ func GetStore(storeId string, titleId string, catalogVersion string, secretKey s
 	return metadata, nil
 }
 
-func GetCatalogItems(catalogVersion string, titleId string, secretKey string, logger Logger) ([]interface{}, error) {
-	logger.Debug("starting GetCatalogItems")
+func (pf *PlayFab) GetCatalogItems() ([]interface{}, error) {
+	pf.logger.Debug("starting GetCatalogItems")
 	requestBody, err := json.Marshal(map[string]interface{}{
-		"CatalogVersion": catalogVersion,
+		"CatalogVersion": pf.catalogVersion,
 	})
 
 	if err != nil {
 		return nil, err
 	}
 
-	body, err := request("POST", titleId, "Server", "GetCatalogItems", requestBody, secretKey, logger)
+	body, err := pf.request("POST", "Server", "GetCatalogItems", requestBody)
 
 	if err != nil {
 		return nil, err
@@ -440,7 +487,7 @@ func GetCatalogItems(catalogVersion string, titleId string, secretKey string, lo
 	return catalogItems, nil
 }
 
-func GetUserInventory(playFabId string, titleId string, secretKey string, logger Logger) ([]interface{}, error) {
+func (pf *PlayFab) GetUserInventory(playFabId string) ([]interface{}, error) {
 
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"PlayFabId": playFabId,
@@ -450,7 +497,7 @@ func GetUserInventory(playFabId string, titleId string, secretKey string, logger
 		return nil, err
 	}
 
-	body, err := request("POST", titleId, "Server", "GetUserInventory", requestBody, secretKey, logger)
+	body, err := pf.request("POST", "Server", "GetUserInventory", requestBody)
 	if err != nil {
 		return nil, err
 	}
@@ -473,7 +520,7 @@ func GetUserInventory(playFabId string, titleId string, secretKey string, logger
 	return itemInstances, nil
 }
 
-func GetVirtualCurrency(playFabId string, titleId string, secretKey string, logger Logger) (map[string]interface{}, error) {
+func (pf *PlayFab) GetVirtualCurrency(playFabId string) (map[string]interface{}, error) {
 
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"PlayFabId": playFabId,
@@ -483,7 +530,7 @@ func GetVirtualCurrency(playFabId string, titleId string, secretKey string, logg
 		return nil, err
 	}
 
-	body, err := request("POST", titleId, "Server", "GetUserInventory", requestBody, secretKey, logger)
+	body, err := pf.request("POST", "Server", "GetUserInventory", requestBody)
 	if err != nil {
 		return nil, err
 	}
@@ -506,8 +553,8 @@ func GetVirtualCurrency(playFabId string, titleId string, secretKey string, logg
 	return virtualCurrency, nil
 }
 
-func AddUserVirtualCurrency(amount uint64, titleId string, currencyId string, playFabId string, secretKey string, logger Logger) (map[string]interface{}, error) {
-	logger.Debug("starting AddUserVirtualCurrency")
+func (pf *PlayFab) AddUserVirtualCurrency(amount uint64, currencyId string, playFabId string) (map[string]interface{}, error) {
+	pf.logger.Debug("starting AddUserVirtualCurrency")
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"Amount":          amount,
 		"PlayFabId":       playFabId,
@@ -518,7 +565,7 @@ func AddUserVirtualCurrency(amount uint64, titleId string, currencyId string, pl
 		return nil, err
 	}
 
-	body, err := request("POST", titleId, "Server", "AddUserVirtualCurrency", requestBody, secretKey, logger)
+	body, err := pf.request("POST", "Server", "AddUserVirtualCurrency", requestBody)
 
 	if err != nil {
 		return nil, err
@@ -537,8 +584,8 @@ func AddUserVirtualCurrency(amount uint64, titleId string, currencyId string, pl
 	return data, nil
 }
 
-func SubtractUserVirtualCurrency(amount uint64, titleId string, currencyId string, playFabId string, secretKey string, logger Logger) (map[string]interface{}, error) {
-	logger.Debug("starting SubtractUserVirtualCurrency")
+func (pf *PlayFab) SubtractUserVirtualCurrency(amount uint64, currencyId string, playFabId string) (map[string]interface{}, error) {
+	pf.logger.Debug("starting SubtractUserVirtualCurrency")
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"Amount":          amount,
 		"PlayFabId":       playFabId,
@@ -549,7 +596,7 @@ func SubtractUserVirtualCurrency(amount uint64, titleId string, currencyId strin
 		return nil, err
 	}
 
-	body, err := request("POST", titleId, "Server", "SubtractUserVirtualCurrency", requestBody, secretKey, logger)
+	body, err := pf.request("POST", "Server", "SubtractUserVirtualCurrency", requestBody)
 
 	if err != nil {
 		return nil, err
@@ -568,7 +615,7 @@ func SubtractUserVirtualCurrency(amount uint64, titleId string, currencyId strin
 	return data, nil
 }
 
-func ConsumeItem(playFabId string, titleId string, secretKey string, itemInstanceId string, consumeCount int, logger Logger) (interface{}, error) {
+func (pf *PlayFab) ConsumeItem(playFabId string, itemInstanceId string, consumeCount int) (interface{}, error) {
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"PlayFabId":      playFabId,
 		"ItemInstanceId": itemInstanceId,
@@ -579,7 +626,7 @@ func ConsumeItem(playFabId string, titleId string, secretKey string, itemInstanc
 		return nil, err
 	}
 
-	body, err := request("POST", titleId, "Server", "ConsumeItem", requestBody, secretKey, logger)
+	body, err := pf.request("POST", "Server", "ConsumeItem", requestBody)
 	if err != nil {
 		return nil, err
 	}
@@ -587,45 +634,7 @@ func ConsumeItem(playFabId string, titleId string, secretKey string, itemInstanc
 	return body, nil
 }
 
-func request(method string, titleId string, api string, funcName string, reqBody []byte, secretKey string, logger Logger) (d []byte, err error) {
-
-	counter := 0
-
-	for counter <= Retries {
-		counter++
-		logger.Debug("Starting retry %d for playfab request", counter)
-		d, oerr := _request(method, titleId, api, funcName, reqBody, secretKey)
-		if oerr != nil {
-			errorData := make(map[string]interface{})
-			errorData, err = ConvertToPlayFabErrorJson(oerr)
-			if err != nil {
-				isServiceUnavailableError := strings.Contains(err.Error(), "Service Unavailable")
-				isBadRequestError := strings.Contains(err.Error(), "Bad Request")
-				isBadGateWay := strings.Contains(err.Error(), "Bad Gateway")
-				if !isServiceUnavailableError && !isBadRequestError && !isBadGateWay {
-					return d, err
-				}
-				logger.Error("waiting for retry after error - %s", err.Error())
-			} else {
-				err, isConflictError := isConflictError(errorData)
-				if err != nil {
-					return d, err
-				}
-
-				if !isConflictError {
-					return d, oerr
-				}
-			}
-			time.Sleep(1 * time.Second)
-		} else {
-			return d, nil
-		}
-	}
-
-	return d, err
-}
-
-func RevokeInventoryItems(revokeInventoryItems []map[string]interface{}, titleId string, secretKey string, logger Logger) error {
+func (pf *PlayFab) RevokeInventoryItems(revokeInventoryItems []map[string]interface{}) error {
 
 	// Make sure there are no empty/nil cells in the slice
 	newRevokeInventoryItems := make([]interface{}, 0, len(revokeInventoryItems))
@@ -648,7 +657,7 @@ func RevokeInventoryItems(revokeInventoryItems []map[string]interface{}, titleId
 		return err
 	}
 
-	_, err = request("POST", titleId, "Server", "RevokeInventoryItems", requestBody, secretKey, logger)
+	_, err = pf.request("POST", "Server", "RevokeInventoryItems", requestBody)
 
 	if err != nil {
 		return err
@@ -657,7 +666,7 @@ func RevokeInventoryItems(revokeInventoryItems []map[string]interface{}, titleId
 	return nil
 }
 
-func SendPushNotification(message string, recipient string, titleId string, secretKey string, logger Logger) error {
+func (pf *PlayFab) SendPushNotification(message string, recipient string) error {
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"Message":   message,
 		"Recipient": recipient,
@@ -667,7 +676,7 @@ func SendPushNotification(message string, recipient string, titleId string, secr
 		return err
 	}
 
-	_, err = request("POST", titleId, "Server", "SendPushNotification", requestBody, secretKey, logger)
+	_, err = pf.request("POST", "Server", "SendPushNotification", requestBody)
 
 	if err != nil {
 		return err
@@ -676,7 +685,7 @@ func SendPushNotification(message string, recipient string, titleId string, secr
 	return nil
 }
 
-func AddPlayerTag(tag string, titleId string, playFabId string, secretKey string, logger Logger) error {
+func (pf *PlayFab) AddPlayerTag(tag string, playFabId string) error {
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"PlayFabId": playFabId,
 		"TagName":   tag,
@@ -686,7 +695,7 @@ func AddPlayerTag(tag string, titleId string, playFabId string, secretKey string
 		return err
 	}
 
-	_, err = request("POST", titleId, "Server", "AddPlayerTag", requestBody, secretKey, logger)
+	_, err = pf.request("POST", "Server", "AddPlayerTag", requestBody)
 
 	if err != nil {
 		return err
@@ -695,7 +704,7 @@ func AddPlayerTag(tag string, titleId string, playFabId string, secretKey string
 	return nil
 }
 
-func RemovePlayerTag(tag string, titleId string, playFabId string, secretKey string, logger Logger) error {
+func (pf *PlayFab) RemovePlayerTag(tag string, playFabId string) error {
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"PlayFabId": playFabId,
 		"TagName":   tag,
@@ -705,7 +714,7 @@ func RemovePlayerTag(tag string, titleId string, playFabId string, secretKey str
 		return err
 	}
 
-	_, err = request("POST", titleId, "Server", "RemovePlayerTag", requestBody, secretKey, logger)
+	_, err = pf.request("POST", "Server", "RemovePlayerTag", requestBody)
 
 	if err != nil {
 		return err
@@ -714,7 +723,7 @@ func RemovePlayerTag(tag string, titleId string, playFabId string, secretKey str
 	return nil
 }
 
-func GetPlayerTags(titleId string, playFabId string, secretKey string, logger Logger) ([]string, error) {
+func (pf *PlayFab) GetPlayerTags(playFabId string) ([]string, error) {
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"PlayFabId": playFabId,
 	})
@@ -723,7 +732,7 @@ func GetPlayerTags(titleId string, playFabId string, secretKey string, logger Lo
 		return nil, err
 	}
 
-	d, err := request("POST", titleId, "Server", "GetPlayerTags", requestBody, secretKey, logger)
+	d, err := pf.request("POST", "Server", "GetPlayerTags", requestBody)
 
 	if err != nil {
 		return nil, err
@@ -756,10 +765,46 @@ func GetPlayerTags(titleId string, playFabId string, secretKey string, logger Lo
 	return tags, nil
 }
 
-func _request(method string, titleId string, api string, funcName string, reqBody []byte, secretKey string) ([]byte, error) {
-	hc := &http.Client{}
+func (pf *PlayFab) request(method string, api string, funcName string, reqBody []byte) (d []byte, err error) {
 
-	req, err := http.NewRequest(method, fmt.Sprintf(Url, titleId, api, funcName), bytes.NewBuffer(reqBody))
+	counter := 0
+
+	for counter <= retries {
+		counter++
+		pf.logger.Debug("Starting retry %d for playfab request", counter)
+		d, oerr := _request(pf.hc, method, pf.titleId, api, funcName, reqBody, pf.secret)
+		if oerr != nil {
+			errorData := make(map[string]interface{})
+			errorData, err = ConvertToPlayFabErrorJson(oerr)
+			if err != nil {
+				isServiceUnavailableError := strings.Contains(err.Error(), "Service Unavailable")
+				isBadRequestError := strings.Contains(err.Error(), "Bad Request")
+				isBadGateWay := strings.Contains(err.Error(), "Bad Gateway")
+				if !isServiceUnavailableError && !isBadRequestError && !isBadGateWay {
+					return d, err
+				}
+				pf.logger.Error("waiting for retry after error - %s", err.Error())
+			} else {
+				err, isConflictError := isConflictError(errorData)
+				if err != nil {
+					return d, err
+				}
+
+				if !isConflictError {
+					return d, oerr
+				}
+			}
+			time.Sleep(1 * time.Second)
+		} else {
+			return d, nil
+		}
+	}
+
+	return d, err
+}
+
+func _request(hc *http.Client, method string, titleId string, api string, funcName string, reqBody []byte, secretKey string) ([]byte, error) {
+	req, err := http.NewRequest(method, fmt.Sprintf(url, titleId, api, funcName), bytes.NewBuffer(reqBody))
 
 	if err != nil {
 		return nil, err
@@ -801,7 +846,7 @@ func isConflictError(errorData map[string]interface{}) (error, bool) {
 		return err, false
 	}
 
-	if errStatus != ConflictStatus {
+	if errStatus != conflictStatus {
 		return nil, false
 	}
 
