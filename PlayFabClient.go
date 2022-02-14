@@ -36,16 +36,16 @@ type Option func(pf *PlayFab)
 
 func WithLogger(logger Logger) Option {
 	return func(pf *PlayFab) {
-		pf.Logger = logger
+		pf.logger = logger
 	}
 }
 
 type PlayFab struct {
-	Logger         Logger
-	Secret         string
-	CatalogVersion string
-	TitleId        string
-	HC             *http.Client
+	logger         Logger
+	secret         string
+	catalogVersion string
+	titleId        string
+	hc             *http.Client
 }
 
 func New(secret, titleId, catalogVersion string, opts ...Option) (*PlayFab, error) {
@@ -83,7 +83,7 @@ func (pf *PlayFab) EvaluateRandomTable(tableId string, playFabId string) (string
 	requestBody, err := json.Marshal(map[string]string{
 		"TableId":        tableId,
 		"PlayFabId":      playFabId,
-		"CatalogVersion": pf.CatalogVersion,
+		"CatalogVersion": pf.catalogVersion,
 	})
 
 	if err != nil {
@@ -177,22 +177,22 @@ func (pf *PlayFab) GrantItemsToUser(itemIds []string, playFabId string) ([]inter
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"ItemIds":        itemIds,
 		"PlayFabId":      playFabId,
-		"CatalogVersion": pf.CatalogVersion,
+		"CatalogVersion": pf.catalogVersion,
 	})
 
-	pf.Logger.Debug("grant items to user playfabId: %s, itemIds %s", playFabId, itemIds)
+	pf.logger.Debug("grant items to user playfabId: %s, itemIds %s", playFabId, itemIds)
 
 	if err != nil {
-		pf.Logger.Debug("Failed Grant Items To User %v", err)
+		pf.logger.Debug("Failed Grant Items To User %v", err)
 		return nil, err
 	}
 
 	body, err := pf.request("POST", "Server", "GrantItemsToUser", requestBody)
 
-	pf.Logger.Debug("grant items response %s", body)
+	pf.logger.Debug("grant items response %s", body)
 
 	if err != nil {
-		pf.Logger.Debug("Failed Grant Items To User %v", err)
+		pf.logger.Debug("Failed Grant Items To User %v", err)
 		return nil, err
 	}
 
@@ -217,7 +217,7 @@ func (pf *PlayFab) GrantItemsToUser(itemIds []string, playFabId string) ([]inter
 }
 
 func (pf *PlayFab) GetPlayerStatistics(statisitcsIds []string, playFabId string) ([]map[string]interface{}, error) {
-	pf.Logger.Debug("starting ReadPlayerStatistics")
+	pf.logger.Debug("starting ReadPlayerStatistics")
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"PlayFabId":       playFabId,
 		"StatisticsNames": statisitcsIds,
@@ -254,7 +254,7 @@ func (pf *PlayFab) GetPlayerStatistics(statisitcsIds []string, playFabId string)
 }
 
 func (pf *PlayFab) GetPlayerCombinedInfo(reqInfo map[string]interface{}, playFabId string) (map[string]interface{}, error) {
-	pf.Logger.Debug("starting getplayercombinedinfo")
+	pf.logger.Debug("starting getplayercombinedinfo")
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"PlayFabId":             playFabId,
 		"InfoRequestParameters": reqInfo,
@@ -290,7 +290,7 @@ func (pf *PlayFab) GetPlayerCombinedInfo(reqInfo map[string]interface{}, playFab
 }
 
 func (pf *PlayFab) UpdatePlayerStatistics(statistics []interface{}, playFabId string) error {
-	pf.Logger.Debug("starting UpdatePlayerStatistics")
+	pf.logger.Debug("starting UpdatePlayerStatistics")
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"PlayFabId":  playFabId,
 		"Statistics": statistics,
@@ -310,7 +310,7 @@ func (pf *PlayFab) UpdatePlayerStatistics(statistics []interface{}, playFabId st
 }
 
 func (pf *PlayFab) GetTitleInternalData(keys []string) (map[string]interface{}, error) {
-	pf.Logger.Debug("starting GetTitleInternalData")
+	pf.logger.Debug("starting GetTitleInternalData")
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"Keys": keys,
 	})
@@ -342,7 +342,7 @@ func (pf *PlayFab) GetTitleInternalData(keys []string) (map[string]interface{}, 
 }
 
 func (pf *PlayFab) GetTitleData(keys []string) (map[string]interface{}, error) {
-	pf.Logger.Debug("starting GetTitleData")
+	pf.logger.Debug("starting GetTitleData")
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"Keys": keys,
 	})
@@ -374,9 +374,9 @@ func (pf *PlayFab) GetTitleData(keys []string) (map[string]interface{}, error) {
 }
 
 func (pf *PlayFab) GetStoreItems(storeId string, playfabId string) ([]interface{}, string, error) {
-	pf.Logger.Debug("starting GetStoreItems")
+	pf.logger.Debug("starting GetStoreItems")
 	requestBody, err := json.Marshal(map[string]interface{}{
-		"CatalogVersion": pf.CatalogVersion,
+		"CatalogVersion": pf.catalogVersion,
 		"StoreId":        storeId,
 		"PlayFabId":      playfabId,
 	})
@@ -409,14 +409,14 @@ func (pf *PlayFab) GetStoreItems(storeId string, playfabId string) ([]interface{
 	if !ok {
 		return nil, "", fmt.Errorf("failed to parse StoreId result")
 	}
-	pf.Logger.Debug("Finished GetStoreItems")
+	pf.logger.Debug("Finished GetStoreItems")
 	return storeItems, StoreId, nil
 }
 
 func (pf *PlayFab) GetStore(storeId string) (map[string]interface{}, error) {
-	pf.Logger.Debug("starting GetStore")
+	pf.logger.Debug("starting GetStore")
 	requestBody, err := json.Marshal(map[string]interface{}{
-		"CatalogVersion": pf.CatalogVersion,
+		"CatalogVersion": pf.catalogVersion,
 		"StoreId":        storeId,
 	})
 
@@ -454,9 +454,9 @@ func (pf *PlayFab) GetStore(storeId string) (map[string]interface{}, error) {
 }
 
 func (pf *PlayFab) GetCatalogItems() ([]interface{}, error) {
-	pf.Logger.Debug("starting GetCatalogItems")
+	pf.logger.Debug("starting GetCatalogItems")
 	requestBody, err := json.Marshal(map[string]interface{}{
-		"CatalogVersion": pf.CatalogVersion,
+		"CatalogVersion": pf.catalogVersion,
 	})
 
 	if err != nil {
@@ -554,7 +554,7 @@ func (pf *PlayFab) GetVirtualCurrency(playFabId string) (map[string]interface{},
 }
 
 func (pf *PlayFab) AddUserVirtualCurrency(amount uint64, currencyId string, playFabId string) (map[string]interface{}, error) {
-	pf.Logger.Debug("starting AddUserVirtualCurrency")
+	pf.logger.Debug("starting AddUserVirtualCurrency")
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"Amount":          amount,
 		"PlayFabId":       playFabId,
@@ -585,7 +585,7 @@ func (pf *PlayFab) AddUserVirtualCurrency(amount uint64, currencyId string, play
 }
 
 func (pf *PlayFab) SubtractUserVirtualCurrency(amount uint64, currencyId string, playFabId string) (map[string]interface{}, error) {
-	pf.Logger.Debug("starting SubtractUserVirtualCurrency")
+	pf.logger.Debug("starting SubtractUserVirtualCurrency")
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"Amount":          amount,
 		"PlayFabId":       playFabId,
@@ -771,8 +771,8 @@ func (pf *PlayFab) request(method string, api string, funcName string, reqBody [
 
 	for counter <= retries {
 		counter++
-		pf.Logger.Debug("Starting retry %d for playfab request", counter)
-		d, oerr := _request(pf.HC, method, pf.TitleId, api, funcName, reqBody, pf.Secret)
+		pf.logger.Debug("Starting retry %d for playfab request", counter)
+		d, oerr := _request(pf.hc, method, pf.titleId, api, funcName, reqBody, pf.secret)
 		if oerr != nil {
 			errorData := make(map[string]interface{})
 			errorData, err = ConvertToPlayFabErrorJson(oerr)
@@ -783,7 +783,7 @@ func (pf *PlayFab) request(method string, api string, funcName string, reqBody [
 				if !isServiceUnavailableError && !isBadRequestError && !isBadGateWay {
 					return d, err
 				}
-				pf.Logger.Error("waiting for retry after error - %s", err.Error())
+				pf.logger.Error("waiting for retry after error - %s", err.Error())
 			} else {
 				err, isConflictError := isConflictError(errorData)
 				if err != nil {
