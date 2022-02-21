@@ -831,7 +831,7 @@ func _request(hc *http.Client, method string, titleId string, api string, funcNa
 	if resp.StatusCode != 200 {
 		res := make(map[string]interface{})
 		if err := json.Unmarshal(resBody, &res); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to unmarshal: %s", string(resBody))
 		}
 		errorCode, _ := res["errorCode"].(float64)
 		errorMessage, _ := res["errorMessage"].(string)
