@@ -13,6 +13,7 @@ import (
 const url = "https://%s.playfabapi.com/%s/%s"
 const retries = 3
 const conflictStatus = "Conflict"
+const ErrUnknown int = 99
 
 type Logger interface {
 	Debug(format string, v ...interface{})
@@ -22,10 +23,13 @@ type Logger interface {
 }
 
 type PlayFabError struct {
-	originError error
-	Body        []byte
-	Method      string
-	RespCode    int
+	originError  error
+	Body         []byte
+	Method       string
+	RespCode     int
+	ErrorCode    int
+	ErrorMsg     string
+	ErrorDetails string
 }
 
 func (e *PlayFabError) Error() string {
@@ -774,8 +778,7 @@ func (pf *PlayFab) request(method string, api string, funcName string, reqBody [
 		pf.logger.Debug("Starting retry %d for playfab request", counter)
 		d, oerr := _request(pf.hc, method, pf.titleId, api, funcName, reqBody, pf.secret)
 		if oerr != nil {
-			errorData := make(map[string]interface{})
-			errorData, err = ConvertToPlayFabErrorJson(oerr)
+			errorData, err := ConvertToPlayFabErrorJson(oerr, method)
 			if err != nil {
 				isServiceUnavailableError := strings.Contains(err.Error(), "Service Unavailable")
 				isBadRequestError := strings.Contains(err.Error(), "Bad Request")
@@ -821,17 +824,26 @@ func _request(hc *http.Client, method string, titleId string, api string, funcNa
 	defer resp.Body.Close()
 
 	resBody, err := ioutil.ReadAll(resp.Body)
-
 	if err != nil {
 		return nil, err
 	}
 
 	if resp.StatusCode != 200 {
+		res := make(map[string]interface{})
+		if err := json.Unmarshal(resBody, &res); err != nil {
+			return nil, err
+		}
+		errorCode, _ := res["errorCode"].(float64)
+		errorMessage, _ := res["errorMessage"].(string)
+		errorDetails, _ := res["errorDetails"].(string)
 		return resBody, &PlayFabError{
-			originError: fmt.Errorf("Failed To Process Request With status code %d: %s", resp.StatusCode, string(resBody)),
-			Body:        resBody,
-			Method:      funcName,
-			RespCode:    resp.StatusCode,
+			originError:  fmt.Errorf("Failed To Process Request With status code %d: %s", resp.StatusCode, string(resBody)),
+			Body:         resBody,
+			Method:       funcName,
+			RespCode:     resp.StatusCode,
+			ErrorCode:    int(errorCode),
+			ErrorMsg:     errorMessage,
+			ErrorDetails: errorDetails,
 		}
 	}
 
@@ -853,12 +865,16 @@ func isConflictError(errorData map[string]interface{}) (error, bool) {
 	return nil, true
 }
 
-func ConvertToPlayFabErrorJson(oerr error) (map[string]interface{}, error) {
+func ConvertToPlayFabErrorJson(oerr error, method string) (map[string]interface{}, error) {
 	errorData := make(map[string]interface{})
 	serr, ok := oerr.(*PlayFabError)
 	if !ok {
-		err := fmt.Errorf("Failed to convert to playfab error")
-		return nil, err
+		return nil, &PlayFabError{
+			originError: oerr,
+			Method:      method,
+			ErrorCode:   ErrUnknown,
+			ErrorMsg:    "Failed to convert to playfab error",
+		}
 	}
 
 	err := json.Unmarshal(serr.Body, &errorData)
