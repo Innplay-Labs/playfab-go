@@ -122,6 +122,62 @@ func (pf *PlayFab) EvaluateRandomTable(tableId string, playFabId string) (string
 	return itemId, nil
 }
 
+func (pf *PlayFab) UpdateUserInternalData(data map[string]string, playFabId string, keysToRemove []string) error {
+	requestBody, err := json.Marshal(map[string]interface{}{
+		"Data":         data,
+		"PlayFabId":    playFabId,
+		"KeysToRemove": keysToRemove,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	_, err = pf.request("POST", "Server", "UpdateUserInternalData", requestBody)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (pf *PlayFab) GetUserInternalData(keys []string, playFabId string) (map[string]interface{}, error) {
+	requestBody, err := json.Marshal(map[string]interface{}{
+		"Keys":      keys,
+		"PlayFabId": playFabId,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := pf.request("POST", "Server", "GetUserInternalData", requestBody)
+
+	if err != nil {
+		return nil, err
+	}
+
+	res := make(map[string]interface{})
+
+	if err := json.Unmarshal(body, &res); err != nil {
+		return nil, err
+	}
+
+	data, ok := res["data"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("Failed to parse GetUserInternalData data")
+	}
+
+	keysData, ok := data["Data"].(map[string]interface{})
+
+	if !ok {
+		return nil, fmt.Errorf("Failed to parse GetUserInternalData data")
+	}
+
+	return keysData, nil
+}
+
 func (pf *PlayFab) UpdateUserReadOnlyData(data map[string]string, playFabId string) error {
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"Data":      data,
