@@ -675,6 +675,37 @@ func (pf *PlayFab) SubtractUserVirtualCurrency(amount uint64, currencyId string,
 	return data, nil
 }
 
+func (pf *PlayFab) ModifyItemUses(usesToAdd int64, itemInstanceId, playfabId string) (map[string]interface{}, error) {
+	pf.logger.Debug("starting ModifyItemUses")
+	requestBody, err := json.Marshal(map[string]interface{}{
+		"UsesToAdd":      usesToAdd,
+		"ItemInstanceId": itemInstanceId,
+		"PlayFabId":      playfabId,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := pf.request("POST", "Server", "ModifyItemUses", requestBody)
+
+	if err != nil {
+		return nil, err
+	}
+
+	res := make(map[string]interface{})
+	if err := json.Unmarshal(body, &res); err != nil {
+		return nil, err
+	}
+
+	data, ok := res["data"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("Failed to parse ModifyItemUses result")
+	}
+
+	return data, nil
+}
+
 func (pf *PlayFab) ConsumeItem(playFabId string, itemInstanceId string, consumeCount int) (interface{}, error) {
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"PlayFabId":      playFabId,
